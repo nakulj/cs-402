@@ -5,67 +5,56 @@
 #include <stdio.h>
 #include <assert.h>
 
-struct {
-	pthread_mutex_t read_lock;
-	pthread_mutex_t write_lock;
-	int n_readers = 0;
-	int write_flag = 0;
 
-	void init() {
-		if (pthread_mutex_init(&read_lock, NULL) != 0) {
-			printf("\n read mutex init failed\n");
-			return 1;
-		}
-		if (pthread_mutex_init(&write_lock, NULL) != 0) {
-			printf("\n write mutex init failed\n");
-			return 1;
-		}
-	}
+pthread_mutex_t read_lock;
+pthread_mutex_t write_lock;
+int n_readers;
+int write_flag;
 
-	void wait_for_no_readers() {
-		while (1) {
-			pthread_mutex_lock(&read_lock);
-			if (n_readers > 0)
-				pthread_mutex_unlock(&read_lock);
-			else break;
-		}
-	}
 
-	void wait_for_no_writers() {
-		while (1) {
-			pthread_mutex_lock(&write_lock);
-			if (write_flag)
-				pthread_mutex_unlock(&write_lock);
-			else break;
-		}
-	}
-
-	void start_write() {
-		wait_for_no_writers();
-		wait_for_no_readers();
-
-	}
-
-	void end_write() {
-		pthread_mutex_unlock(&read_lock);
-		pthread_mutex_unlock(&write_lock);
-	}
-
-	void start_read() {
-		wait_for_no_writers();
+void wait_for_no_readers() {
+	while (1) {
 		pthread_mutex_lock(&read_lock);
-		n_readers++;
-		pthread_mutex_unlock(&read_lock);
-		pthread_mutex_unlock(&write_lock);
+		if (n_readers > 0)
+			pthread_mutex_unlock(&read_lock);
+		else break;
 	}
+}
 
-	void end_read() {
-		pthread_mutex_lock(&read_lock);
-		n_readers--;
-		pthread_mutex_unlock(&read_lock);
+void wait_for_no_writers() {
+	while (1) {
+		pthread_mutex_lock(&write_lock);
+		if (write_flag)
+			pthread_mutex_unlock(&write_lock);
+		else break;
 	}
-} rwlock;
+}
 
+void start_write() {
+	wait_for_no_writers();
+	wait_for_no_readers();
+	write_flag++;
+}
+
+void end_write() {
+	write_flag--;
+	pthread_mutex_unlock(&read_lock);
+	pthread_mutex_unlock(&write_lock);
+}
+
+void start_read() {
+	wait_for_no_writers();
+	pthread_mutex_lock(&read_lock);
+	n_readers++;
+	pthread_mutex_unlock(&read_lock);
+	pthread_mutex_unlock(&write_lock);
+}
+
+void end_read() {
+	pthread_mutex_lock(&read_lock);
+	n_readers--;
+	pthread_mutex_unlock(&read_lock);
+}
 
 
 
@@ -109,30 +98,30 @@ void node_destroy(node_t * node) {
 }
 
 void query(char *name, char *result, int len) {
-	rwlock.start_read();
+	start_read();
 	node_t *target;
 
 	target = search(name, &head, 0);
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
-		rwlock.end_read();
+		end_read();
 		return;
 	} else {
 		strncpy(result, target->value, len - 1);
-		rwlock.end_read();
+		end_read();
 		return;
 	}
 
 }
 
 int add(char *name, char *value) {
-	rwlock.start_write();
+	start_write();
 	node_t *parent;
 	node_t *target;
 	node_t *newnode;
 
 	if ((target = search(name, &head, &parent)) != 0) {
-		rwlock.end_write();
+		end_write();
 		return 0;
 	}
 
@@ -142,12 +131,12 @@ int add(char *name, char *value) {
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
-	rwlock.end_write();
+	end_write();
 	return 1;
 }
 
 int xremove(char *name) {
-	rwlock.start_write();
+	start_write();
 	node_t *parent;
 	node_t *dnode;
 	node_t *next;
@@ -156,7 +145,7 @@ int xremove(char *name) {
 	/* first, find the node to be removed */
 	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
-		rwlock.end_write();
+		end_write();
 		return 0;
 	}
 
@@ -206,7 +195,7 @@ int xremove(char *name) {
 		*pnext = next->rchild;
 		node_destroy(next);
 	}
-	rwlock.end_write();
+	end_write();
 	return 1;
 }
 
@@ -336,6 +325,14 @@ void interpret_command(char *command, char *response, int len) {
 }
 
 void initDB() {
-	rwlock.init();
+	n_readers = 0;
+	write_flag = 0;
+	if (pthread_mutex_init(&read_lock, NULL) != 0) {
+		printf("\n read mutex init failed\n");
+		return 1;
+	}
+	if (pthread_mutex_init(&write_lock, NULL) != 0) {
+		printf("\n write mutex init failed\n");
+		return 1;
+	}
 }
-
