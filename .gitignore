@@ -16,3 +16,6 @@
 *.exe
 *.out
 *.app
+
+# Netbeans stuff
+/mt_db/nbproject/*
