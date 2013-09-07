@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <assert.h>
 
+pthread_mutex_t read_lock;
+pthread_mutex_t write_lock;
+int n_readers=0;
+int write_flag=0;
+
 node_t *search(char *, node_t *, node_t **);
 
 node_t head = { "", "", 0, 0 };
@@ -48,6 +53,12 @@ void node_destroy(node_t * node)
 
 void query(char *name, char *result, int len)
 {
+	wait_for_no_writers();
+	pthread_mutex_lock(&read_lock);
+		n_readers++;
+		pthread_mutex_unlock(&write_lock);
+	pthread_mutex_unlock(&read_lock);
+	
 	node_t *target;
 
 	target = search(name, &head, 0);
@@ -58,10 +69,17 @@ void query(char *name, char *result, int len)
 		strncpy(result, target->value, len - 1);
 		return;
 	}
+	pthread_mutex_lock(&read_lock);
+		n_readers--;
+	pthread_mutex_unlock(&read_lock);
+	
 }
 
-int add(char *name, char *value)
+int add(char *name, char *value) 
 {
+	wait_for_no_readers();
+	wait_for_no_writers();
+	
 	node_t *parent;
 	node_t *target;
 	node_t *newnode;
@@ -76,12 +94,15 @@ int add(char *name, char *value)
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
-
+	pthread_mutex_unlock(&write_lock);
+	pthread_mutex_unlock(&read_lock);
 	return 1;
 }
 
 int xremove(char *name)
 {
+	wait_for_no_readers();
+	wait_for_no_writers();
 	node_t *parent;
 	node_t *dnode;
 	node_t *next;
@@ -139,7 +160,8 @@ int xremove(char *name)
 		*pnext = next->rchild;
 		node_destroy(next);
 	}
-
+	pthread_mutex_unlock(&write_lock);
+	pthread_mutex_unlock(&read_lock);
 	return 1;
 }
 
@@ -267,5 +289,34 @@ void interpret_command(char *command, char *response, int len)
 	default:
 		strncpy(response, "ill-formed command", len - 1);
 		return;
+	}
+}
+
+void initDB() {
+	if (pthread_mutex_init(&read_lock, NULL) != 0) {
+        printf("\n read mutex init failed\n");
+        return 1;
+    }
+	if (pthread_mutex_init(&write_lock, NULL) != 0) {
+        printf("\n write mutex init failed\n");
+        return 1;
+    }
+}
+
+void wait_for_no_readers(){
+	while(1) {
+		pthread_mutex_lock(&read_lock);
+		if(n_readers>0)
+			pthread_mutex_unlock(&read_lock);
+		else break;
+	}
+}
+
+void wait_for_no_writers() {
+	while(1) {
+		pthread_mutex_lock(&write_lock);
+		if(write_flag)
+			pthread_mutex_unlock(&write_lock);
+		else break;
 	}
 }
