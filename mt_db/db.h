@@ -9,4 +9,5 @@ typedef struct Node {
 
 extern node_t head;
 
+void init_db();
 void interpret_command(char *, char *, int);
