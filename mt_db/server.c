@@ -61,7 +61,7 @@ void *client_run(void *arg)
 	while (handle_command(command, response, sizeof(response))) {
 		serve(client->win, response, command);
 	}
-
+	client_destroy(client);
 	return 0;
 }
 
@@ -88,7 +88,5 @@ int main(int argc, char *argv[])
 
 	c = client_create(0);
 	client_run((void *)c);
-	client_destroy(c);
-
 	return 0;
 }
