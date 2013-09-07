@@ -5,30 +5,88 @@
 #include <stdio.h>
 #include <assert.h>
 
-pthread_mutex_t read_lock;
-pthread_mutex_t write_lock;
-int n_readers=0;
-int write_flag=0;
+struct {
+	pthread_mutex_t read_lock;
+	pthread_mutex_t write_lock;
+	int n_readers = 0;
+	int write_flag = 0;
+
+	void init() {
+		if (pthread_mutex_init(&read_lock, NULL) != 0) {
+			printf("\n read mutex init failed\n");
+			return 1;
+		}
+		if (pthread_mutex_init(&write_lock, NULL) != 0) {
+			printf("\n write mutex init failed\n");
+			return 1;
+		}
+	}
+
+	void wait_for_no_readers() {
+		while (1) {
+			pthread_mutex_lock(&read_lock);
+			if (n_readers > 0)
+				pthread_mutex_unlock(&read_lock);
+			else break;
+		}
+	}
+
+	void wait_for_no_writers() {
+		while (1) {
+			pthread_mutex_lock(&write_lock);
+			if (write_flag)
+				pthread_mutex_unlock(&write_lock);
+			else break;
+		}
+	}
+
+	void start_write() {
+		wait_for_no_writers();
+		wait_for_no_readers();
+
+	}
+
+	void end_write() {
+		pthread_mutex_unlock(&read_lock);
+		pthread_mutex_unlock(&write_lock);
+	}
+
+	void start_read() {
+		wait_for_no_writers();
+		pthread_mutex_lock(&read_lock);
+		n_readers++;
+		pthread_mutex_unlock(&read_lock);
+		pthread_mutex_unlock(&write_lock);
+	}
+
+	void end_read() {
+		pthread_mutex_lock(&read_lock);
+		n_readers--;
+		pthread_mutex_unlock(&read_lock);
+	}
+} rwlock;
+
+
+
 
 node_t *search(char *, node_t *, node_t **);
 
-node_t head = { "", "", 0, 0 };
+node_t head = {"", "", 0, 0};
 
 node_t *node_create(char *arg_name, char *arg_value,
-			 node_t * arg_left, node_t * arg_right)
-{
+		node_t * arg_left, node_t * arg_right) {
 	node_t *new_node;
 
-	new_node = (node_t *) malloc(sizeof(node_t));
+	new_node = (node_t *) malloc(sizeof (node_t));
 	if (new_node == 0)
 		return 0;
 
-	if ((new_node->name = (char *)malloc(strlen(arg_name) + 1)) == 0) {
+	if ((new_node->name = (char *) malloc(strlen(arg_name) + 1)) == 0) {
 		free(new_node);
 		return 0;
 	}
 
-	if ((new_node->value = (char *)malloc(strlen(arg_value) + 1)) == 0) {
+	if ((new_node->value = (char *) malloc(strlen(arg_value) + 1)) == 0) {
 		free(new_node->name);
 		free(new_node);
 		return 0;
@@ -42,8 +100,7 @@ node_t *node_create(char *arg_name, char *arg_value,
 	return new_node;
 }
 
-void node_destroy(node_t * node)
-{
+void node_destroy(node_t * node) {
 	if (node->name != 0)
 		free(node->name);
 	if (node->value != 0)
@@ -51,40 +108,31 @@ void node_destroy(node_t * node)
 	free(node);
 }
 
-void query(char *name, char *result, int len)
-{
-	wait_for_no_writers();
-	pthread_mutex_lock(&read_lock);
-		n_readers++;
-		pthread_mutex_unlock(&write_lock);
-	pthread_mutex_unlock(&read_lock);
-	
+void query(char *name, char *result, int len) {
+	rwlock.start_read();
 	node_t *target;
 
 	target = search(name, &head, 0);
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
+		rwlock.end_read();
 		return;
 	} else {
 		strncpy(result, target->value, len - 1);
+		rwlock.end_read();
 		return;
 	}
-	pthread_mutex_lock(&read_lock);
-		n_readers--;
-	pthread_mutex_unlock(&read_lock);
-	
+
 }
 
-int add(char *name, char *value) 
-{
-	wait_for_no_readers();
-	wait_for_no_writers();
-	
+int add(char *name, char *value) {
+	rwlock.start_write();
 	node_t *parent;
 	node_t *target;
 	node_t *newnode;
 
 	if ((target = search(name, &head, &parent)) != 0) {
+		rwlock.end_write();
 		return 0;
 	}
 
@@ -94,15 +142,12 @@ int add(char *name, char *value)
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
-	pthread_mutex_unlock(&write_lock);
-	pthread_mutex_unlock(&read_lock);
+	rwlock.end_write();
 	return 1;
 }
 
-int xremove(char *name)
-{
-	wait_for_no_readers();
-	wait_for_no_writers();
+int xremove(char *name) {
+	rwlock.start_write();
 	node_t *parent;
 	node_t *dnode;
 	node_t *next;
@@ -111,6 +156,7 @@ int xremove(char *name)
 	/* first, find the node to be removed */
 	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
+		rwlock.end_write();
 		return 0;
 	}
 
@@ -160,13 +206,11 @@ int xremove(char *name)
 		*pnext = next->rchild;
 		node_destroy(next);
 	}
-	pthread_mutex_unlock(&write_lock);
-	pthread_mutex_unlock(&read_lock);
+	rwlock.end_write();
 	return 1;
 }
 
-node_t *search(char *name, node_t * parent, node_t ** parentpp)
-{
+node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	/* Search the tree, starting at parent, for a node containing
 	 * name (the "target node").  Return a pointer to the node,
 	 * if found, otherwise return 0.  If parentpp is not 0, then it points
@@ -205,8 +249,7 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp)
 	return (result);
 }
 
-void interpret_command(char *command, char *response, int len)
-{
+void interpret_command(char *command, char *response, int len) {
 	char value[256];
 	char ibuf[256];
 	char name[256];
@@ -217,60 +260,60 @@ void interpret_command(char *command, char *response, int len)
 	}
 
 	switch (command[0]) {
-	case 'q':
-		/* Query */
-		sscanf(&command[1], "%255s", name);
-		if (strlen(name) == 0) {
-			strncpy(response, "ill-formed command", len - 1);
+		case 'q':
+			/* Query */
+			sscanf(&command[1], "%255s", name);
+			if (strlen(name) == 0) {
+				strncpy(response, "ill-formed command", len - 1);
+				return;
+			}
+
+			query(name, response, len);
+			if (strlen(response) == 0) {
+				strncpy(response, "not found", len - 1);
+			}
+
 			return;
-		}
 
-		query(name, response, len);
-		if (strlen(response) == 0) {
-			strncpy(response, "not found", len - 1);
-		}
+		case 'a':
+			/* Add to the database */
+			sscanf(&command[1], "%255s %255s", name, value);
+			if ((strlen(name) == 0) || (strlen(value) == 0)) {
+				strncpy(response, "ill-formed command", len - 1);
+				return;
+			}
 
-		return;
+			if (add(name, value)) {
+				strncpy(response, "added", len - 1);
+			} else {
+				strncpy(response, "already in database", len - 1);
+			}
 
-	case 'a':
-		/* Add to the database */
-		sscanf(&command[1], "%255s %255s", name, value);
-		if ((strlen(name) == 0) || (strlen(value) == 0)) {
-			strncpy(response, "ill-formed command", len - 1);
 			return;
-		}
 
-		if (add(name, value)) {
-			strncpy(response, "added", len - 1);
-		} else {
-			strncpy(response, "already in database", len - 1);
-		}
+		case 'd':
+			/* Delete from the database */
+			sscanf(&command[1], "%255s", name);
+			if (strlen(name) == 0) {
+				strncpy(response, "ill-formed command", len - 1);
+				return;
+			}
 
-		return;
+			if (xremove(name)) {
+				strncpy(response, "removed", len - 1);
+			} else {
+				strncpy(response, "not in database", len - 1);
+			}
 
-	case 'd':
-		/* Delete from the database */
-		sscanf(&command[1], "%255s", name);
-		if (strlen(name) == 0) {
-			strncpy(response, "ill-formed command", len - 1);
 			return;
-		}
 
-		if (xremove(name)) {
-			strncpy(response, "removed", len - 1);
-		} else {
-			strncpy(response, "not in database", len - 1);
-		}
-
-		return;
-
-	case 'f':
-		/* process the commands in a file (silently) */
-		sscanf(&command[1], "%255s", name);
-		if (name[0] == '\0') {
-			strncpy(response, "ill-formed command", len - 1);
-			return;
-		}
+		case 'f':
+			/* process the commands in a file (silently) */
+			sscanf(&command[1], "%255s", name);
+			if (name[0] == '\0') {
+				strncpy(response, "ill-formed command", len - 1);
+				return;
+			}
 
 		{
 			FILE *finput = fopen(name, "r");
@@ -278,45 +321,21 @@ void interpret_command(char *command, char *response, int len)
 				strncpy(response, "bad file name", len - 1);
 				return;
 			}
-			while (fgets(ibuf, sizeof(ibuf), finput) != 0) {
+			while (fgets(ibuf, sizeof (ibuf), finput) != 0) {
 				interpret_command(ibuf, response, len);
 			}
 			fclose(finput);
 		}
-		strncpy(response, "file processed", len - 1);
-		return;
+			strncpy(response, "file processed", len - 1);
+			return;
 
-	default:
-		strncpy(response, "ill-formed command", len - 1);
-		return;
+		default:
+			strncpy(response, "ill-formed command", len - 1);
+			return;
 	}
 }
 
 void initDB() {
-	if (pthread_mutex_init(&read_lock, NULL) != 0) {
-        printf("\n read mutex init failed\n");
-        return 1;
-    }
-	if (pthread_mutex_init(&write_lock, NULL) != 0) {
-        printf("\n write mutex init failed\n");
-        return 1;
-    }
+	rwlock.init();
 }
 
-void wait_for_no_readers(){
-	while(1) {
-		pthread_mutex_lock(&read_lock);
-		if(n_readers>0)
-			pthread_mutex_unlock(&read_lock);
-		else break;
-	}
-}
-
-void wait_for_no_writers() {
-	while(1) {
-		pthread_mutex_lock(&write_lock);
-		if(write_flag)
-			pthread_mutex_unlock(&write_lock);
-		else break;
-	}
-}
