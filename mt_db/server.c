@@ -80,7 +80,7 @@ int handle_command(char *command, char *response, int len)
 int main(int argc, char *argv[])
 {
 	client_t *c;
-	int clientCtr=0;
+	int clientCtr = 0;
 	char command[256];
 	
 	if (argc != 1) {
@@ -89,12 +89,12 @@ int main(int argc, char *argv[])
 	}
 	
 	while(1) {
-		scanf("%s",command);
-		if(strcmp(command,"e")!=0) break;
+		scanf("%s", command);
+		if (strcmp(command,"e") !=0 ) 
+			break;
 		c = client_create(clientCtr++);
-		pthread_t *theThread= &(c->thread);
+		pthread_t *theThread = &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
-		//client_run((void *)c);
 	}
 	
 	return 0;
