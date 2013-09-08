@@ -324,7 +324,7 @@ void interpret_command(char *command, char *response, int len) {
 	}
 }
 
-void initDB() {
+void init_db() {
 	n_readers = 0;
 	write_flag = 0;
 	if (pthread_mutex_init(&read_lock, NULL) != 0) {
