@@ -31,19 +31,21 @@ void wait_for_no_writers() {
 }
 
 void start_write() {
-	wait_for_no_writers();
+	// wait_for_no_writers();
+	pthread_mutex_lock(&write_lock);
 	wait_for_no_readers();
-	write_flag++;
+	// write_flag++;
 }
 
 void end_write() {
-	write_flag--;
+	// write_flag--;
 	pthread_mutex_unlock(&read_lock);
 	pthread_mutex_unlock(&write_lock);
 }
 
 void start_read() {
-	wait_for_no_writers();
+	// wait_for_no_writers();
+	pthread_mutex_lock(&write_lock);
 	pthread_mutex_lock(&read_lock);
 	n_readers++;
 	pthread_mutex_unlock(&read_lock);
@@ -102,13 +104,12 @@ void query(char *name, char *result, int len) {
 	node_t *target;
 
 	target = search(name, &head, 0);
+	end_read();
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
-		end_read();
 		return;
 	} else {
 		strncpy(result, target->value, len - 1);
-		end_read();
 		return;
 	}
 
@@ -329,10 +330,10 @@ void init_db() {
 	write_flag = 0;
 	if (pthread_mutex_init(&read_lock, NULL) != 0) {
 		printf("\n read mutex init failed\n");
-		return 1;
+		return;
 	}
 	if (pthread_mutex_init(&write_lock, NULL) != 0) {
 		printf("\n write mutex init failed\n");
-		return 1;
+		return;
 	}
 }

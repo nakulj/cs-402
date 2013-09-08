@@ -88,13 +88,19 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	while(1) {
-		scanf("%s",command);
-		if(strcmp(command,"e")!=0) break;
+	// while(1) {
+	// 	scanf("%s",command);
+	// 	if(strcmp(command,"e")!=0) break;
+	// 	c = client_create(clientCtr++);
+	// 	pthread_t *theThread= &(c->thread);
+	// 	pthread_create(theThread, NULL, client_run, (void *)c);
+	// 	//client_run((void *)c);
+	// }
+	int i = 0;
+	for(i = 0; i < 10; i++) {
 		c = client_create(clientCtr++);
 		pthread_t *theThread= &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
-		//client_run((void *)c);
 	}
 	
 	return 0;
