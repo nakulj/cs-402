@@ -6,56 +6,56 @@
 #include <assert.h>
 
 
-pthread_mutex_t read_lock;
-pthread_mutex_t write_lock;
+pthread_mutex_t rw_mutex;
+pthread_cond_t has_reader;
+pthread_cond_t has_writer;
 int n_readers;
-int write_flag;
+int n_writers;
+int n_waiting_writers;
 
-
-void wait_for_no_readers() {
-	while (1) {
-		pthread_mutex_lock(&read_lock);
-		if (n_readers > 0)
-			pthread_mutex_unlock(&read_lock);
-		else break;
-	}
+void init_db() {
+	n_readers = 0;
+	n_writers = 0;
+	n_waiting_writers = 0;
+	pthread_mutex_init(&rw_mutex, NULL);
+	pthread_cond_init(&has_reader, NULL);
+	pthread_cond_init(&has_writer, NULL);	
 }
 
-void wait_for_no_writers() {
-	while (1) {
-		pthread_mutex_lock(&write_lock);
-		if (write_flag)
-			pthread_mutex_unlock(&write_lock);
-		else break;
-	}
-}
 
 void start_write() {
-	// wait_for_no_writers();
-	pthread_mutex_lock(&write_lock);
-	wait_for_no_readers();
-	// write_flag++;
+	pthread_mutex_lock(&rw_mutex);
+	n_waiting_writers++;
+	while(n_readers>0 || n_writers>0)
+		pthread_cond_wait(&has_writer,&rw_mutex);
+	n_waiting_writers--;
+	n_writers++;
+	pthread_mutex_unlock(&rw_mutex);
 }
 
 void end_write() {
-	// write_flag--;
-	pthread_mutex_unlock(&read_lock);
-	pthread_mutex_unlock(&write_lock);
+	pthread_mutex_lock(&rw_mutex);
+	n_writers--;
+	if(n_waiting_writers>0)
+		pthread_cond_signal(&has_writer);
+	else
+		pthread_cond_broadcast(&has_reader);
+	pthread_mutex_unlock(&rw_mutex);
 }
 
 void start_read() {
-	// wait_for_no_writers();
-	pthread_mutex_lock(&write_lock);
-	pthread_mutex_lock(&read_lock);
+	pthread_mutex_lock(&rw_mutex);
+	while(n_writers>0 && n_waiting_writers>0)
+		pthread_cond_wait(&has_reader,&rw_mutex);
 	n_readers++;
-	pthread_mutex_unlock(&read_lock);
-	pthread_mutex_unlock(&write_lock);
+	pthread_mutex_unlock(&rw_mutex);
 }
 
 void end_read() {
-	pthread_mutex_lock(&read_lock);
+	pthread_mutex_lock(&rw_mutex);
 	n_readers--;
-	pthread_mutex_unlock(&read_lock);
+	pthread_cond_broadcast(&has_reader);
+	pthread_mutex_unlock(&rw_mutex);
 }
 
 
@@ -325,15 +325,4 @@ void interpret_command(char *command, char *response, int len) {
 	}
 }
 
-void init_db() {
-	n_readers = 0;
-	write_flag = 0;
-	if (pthread_mutex_init(&read_lock, NULL) != 0) {
-		printf("\n read mutex init failed\n");
-		return;
-	}
-	if (pthread_mutex_init(&write_lock, NULL) != 0) {
-		printf("\n write mutex init failed\n");
-		return;
-	}
-}
+

@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 	// 	//client_run((void *)c);
 	// }
 	int i = 0;
-	for(i = 0; i < 10; i++) {
+	for(i = 0; i < 1; i++) {
 		c = client_create(clientCtr++);
 		pthread_t *theThread= &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
