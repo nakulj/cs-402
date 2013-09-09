@@ -6,59 +6,72 @@
 #include <assert.h>
 
 
-pthread_mutex_t rw_mutex;
-pthread_cond_t has_reader;
-pthread_cond_t has_writer;
-int n_readers;
-int n_writers;
-int n_waiting_writers;
+pthread_mutex_t rw_lock;
+pthread_cond_t 	ready_for_read;
+pthread_cond_t 	ready_for_write;
+
+int num_readers;
+int num_writers;
+int num_waiting_writers;
 
 void init_db() {
-	n_readers = 0;
-	n_writers = 0;
-	n_waiting_writers = 0;
-	pthread_mutex_init(&rw_mutex, NULL);
-	pthread_cond_init(&has_reader, NULL);
-	pthread_cond_init(&has_writer, NULL);	
+	num_readers = 0;
+	num_writers = 0;
+	num_waiting_writers = 0;
+
+	if (pthread_mutex_init(&rw_lock, NULL) != 0) {
+		printf("\n rw_lock mutex init failed\n");
+		return;
+	}
+
+	if (pthread_cond_init(&ready_for_read, NULL) != 0) {
+		printf("\n read condition variable init failed\n");
+		return;
+	}
+
+	if (pthread_cond_init(&ready_for_write, NULL) != 0) {
+		printf("\n write condition variable init failed\n");
+		return;
+	}
 }
 
-
 void start_write() {
-	pthread_mutex_lock(&rw_mutex);
-	n_waiting_writers++;
-	while(n_readers>0 || n_writers>0)
-		pthread_cond_wait(&has_writer,&rw_mutex);
-	n_waiting_writers--;
-	n_writers++;
-	pthread_mutex_unlock(&rw_mutex);
+	pthread_mutex_lock(&rw_lock);
+		num_waiting_writers++;
+		while( num_readers > 0 || num_writers > 0 ) {
+			pthread_cond_wait(&ready_for_write, &rw_lock);
+		}
+		num_waiting_writers--;
+		num_writers++;
+	pthread_mutex_unlock(&rw_lock);
 }
 
 void end_write() {
-	pthread_mutex_lock(&rw_mutex);
-	n_writers--;
-	if(n_waiting_writers>0)
-		pthread_cond_signal(&has_writer);
-	else
-		pthread_cond_broadcast(&has_reader);
-	pthread_mutex_unlock(&rw_mutex);
+	pthread_mutex_lock(&rw_lock);
+	num_writers--;
+	if (num_waiting_writers > 0) {
+		pthread_cond_signal(&ready_for_write);	
+	} else {
+		pthread_cond_signal(&ready_for_read);
+	}
+	pthread_mutex_unlock(&rw_lock);
 }
 
 void start_read() {
-	pthread_mutex_lock(&rw_mutex);
-	while(n_writers>0 && n_waiting_writers>0)
-		pthread_cond_wait(&has_reader,&rw_mutex);
-	n_readers++;
-	pthread_mutex_unlock(&rw_mutex);
+	pthread_mutex_lock(&rw_lock);
+		while( num_writers > 0 && num_waiting_writers > 0 ) {
+			pthread_cond_wait(&ready_for_read, &rw_lock);
+		}
+		num_readers++;
+	pthread_mutex_unlock(&rw_lock);
 }
 
 void end_read() {
-	pthread_mutex_lock(&rw_mutex);
-	n_readers--;
-	pthread_cond_broadcast(&has_reader);
-	pthread_mutex_unlock(&rw_mutex);
+	pthread_mutex_lock(&rw_lock);
+	num_readers--;
+	pthread_cond_signal(&ready_for_write);
+	pthread_mutex_unlock(&rw_lock);
 }
-
-
 
 node_t *search(char *, node_t *, node_t **);
 
@@ -324,5 +337,3 @@ void interpret_command(char *command, char *response, int len) {
 			return;
 	}
 }
-
-
