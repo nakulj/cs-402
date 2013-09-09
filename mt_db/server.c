@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 	client_t *c;
 	int clientCtr = 0;
 	char command[256];
-	initDB();
+	init_db();
 	if (argc != 1) {
 		fprintf(stderr, "Usage: server\n");
 		exit(1);
@@ -96,6 +96,23 @@ int main(int argc, char *argv[])
 		pthread_t *theThread = &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
 	}
+	 while(1) {
+	 	scanf("%s",command);
+	 	if(strcmp(command,"e")!=0) break;
+	 	c = client_create(clientCtr++);
+	 	pthread_t *theThread= &(c->thread);
+	 	pthread_create(theThread, NULL, client_run, (void *)c);
+	 	//client_run((void *)c);
+	 }
+
+//	//test code
+//	int i = 0;
+//	for(i = 0; i < 10; i++) {
+//		c = client_create(clientCtr++);
+//		pthread_t *theThread= &(c->thread);
+//		pthread_create(theThread, NULL, client_run, (void *)c);
+//	}
+//	scanf("%s",command);
 	
 	return 0;
 }
