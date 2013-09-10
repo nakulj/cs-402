@@ -52,7 +52,7 @@ void end_write() {
 	if (num_waiting_writers > 0) {
 		pthread_cond_signal(&ready_for_write);	
 	} else {
-		pthread_cond_signal(&ready_for_read);
+		pthread_cond_broadcast(&ready_for_read);
 	}
 	pthread_mutex_unlock(&rw_lock);
 }
