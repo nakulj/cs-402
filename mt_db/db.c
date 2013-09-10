@@ -15,10 +15,7 @@ typedef struct {
 	int num_waiting_writers;
 } lockunit_t;
 
-#define COARSE_LOCK
-
 #ifdef COARSE_LOCK
-
 lockunit_t db_lockunit;
 
 void init_db() {
@@ -123,11 +120,16 @@ void node_destroy(node_t * node) {
 }
 
 void query(char *name, char *result, int len) {
+#ifdef COARSE_LOCK
 	start_read(&db_lockunit);
+#endif
 	node_t *target;
 
 	target = search(name, &head, 0);
+
+#ifdef COARSE_LOCK
 	end_read(&db_lockunit);
+#endif
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
 		return;
@@ -135,17 +137,20 @@ void query(char *name, char *result, int len) {
 		strncpy(result, target->value, len - 1);
 		return;
 	}
-
 }
 
 int add(char *name, char *value) {
+#ifdef COARSE_LOCK
 	start_write(&db_lockunit);
+#endif
 	node_t *parent;
 	node_t *target;
 	node_t *newnode;
 
 	if ((target = search(name, &head, &parent)) != 0) {
+#ifdef COARSE_LOCK
 		end_write(&db_lockunit);
+#endif
 		return 0;
 	}
 
@@ -155,12 +160,16 @@ int add(char *name, char *value) {
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
+#ifdef COARSE_LOCK
 	end_write(&db_lockunit);
+#endif
 	return 1;
 }
 
 int xremove(char *name) {
+#ifdef COARSE_LOCK
 	start_write(&db_lockunit);
+#endif
 	node_t *parent;
 	node_t *dnode;
 	node_t *next;
@@ -169,7 +178,9 @@ int xremove(char *name) {
 	/* first, find the node to be removed */
 	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
+#ifdef COARSE_LOCK
 		end_write(&db_lockunit);
+#endif
 		return 0;
 	}
 
@@ -219,7 +230,9 @@ int xremove(char *name) {
 		*pnext = next->rchild;
 		node_destroy(next);
 	}
+#ifdef COARSE_LOCK
 	end_write(&db_lockunit);
+#endif
 	return 1;
 }
 
