@@ -19,3 +19,6 @@
 
 # Netbeans stuff
 /mt_db/nbproject/*
+
+# Vim stuff
+*.swp
