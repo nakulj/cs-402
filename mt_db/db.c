@@ -5,72 +5,79 @@
 #include <stdio.h>
 #include <assert.h>
 
+typedef struct {
+	pthread_mutex_t rw_lock;
+	pthread_cond_t 	ready_for_read;
+	pthread_cond_t 	ready_for_write;
 
-pthread_mutex_t rw_lock;
-pthread_cond_t 	ready_for_read;
-pthread_cond_t 	ready_for_write;
+	int num_readers;
+	int num_writers;
+	int num_waiting_writers;
+} lockunit_t;
 
-int num_readers;
-int num_writers;
-int num_waiting_writers;
+#ifdef COARSE_LOCK
+lockunit_t db_lockunit;
 
 void init_db() {
-	num_readers = 0;
-	num_writers = 0;
-	num_waiting_writers = 0;
+	db_lockunit.num_readers = 0;
+	db_lockunit.num_writers = 0;
+	db_lockunit.num_waiting_writers = 0;
 
-	if (pthread_mutex_init(&rw_lock, NULL) != 0) {
-		printf("\n rw_lock mutex init failed\n");
+	if (pthread_mutex_init(&db_lockunit.rw_lock, NULL) != 0) {
+		printf("\n db_rw_lock mutex init failed\n");
 		return;
 	}
 
-	if (pthread_cond_init(&ready_for_read, NULL) != 0) {
+	if (pthread_cond_init(&db_lockunit.ready_for_read, NULL) != 0) {
 		printf("\n read condition variable init failed\n");
 		return;
 	}
 
-	if (pthread_cond_init(&ready_for_write, NULL) != 0) {
+	if (pthread_cond_init(&db_lockunit.ready_for_write, NULL) != 0) {
 		printf("\n write condition variable init failed\n");
 		return;
 	}
 }
+#else
+void init_db() {}
+#endif
 
-void start_write() {
-	pthread_mutex_lock(&rw_lock);
-		num_waiting_writers++;
-		while( num_readers > 0 || num_writers > 0 ) {
-			pthread_cond_wait(&ready_for_write, &rw_lock);
+void start_write(lockunit_t* lockunit) {
+	pthread_mutex_lock(&lockunit->rw_lock);
+		lockunit->num_waiting_writers ++;
+		while( lockunit->num_readers > 0 || lockunit->num_writers > 0 ) {
+			pthread_cond_wait(&lockunit->ready_for_write, &lockunit->rw_lock);
 		}
-		num_waiting_writers--;
-		num_writers++;
-	pthread_mutex_unlock(&rw_lock);
+		lockunit->num_waiting_writers --;
+		lockunit->num_writers ++;
+	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
-void end_write() {
-	pthread_mutex_lock(&rw_lock);
-	num_writers--;
-	if (num_waiting_writers > 0) {
-		pthread_cond_signal(&ready_for_write);	
+void end_write(lockunit_t* lockunit) {
+	pthread_mutex_lock(&lockunit->rw_lock);
+	lockunit->num_writers --;
+	if (lockunit->num_waiting_writers > 0) {
+		pthread_cond_signal(&lockunit->ready_for_write);	
 	} else {
-		pthread_cond_broadcast(&ready_for_read);
+		pthread_cond_broadcast(&lockunit->ready_for_read);
 	}
-	pthread_mutex_unlock(&rw_lock);
+	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
-void start_read() {
-	pthread_mutex_lock(&rw_lock);
-		while( num_writers > 0 && num_waiting_writers > 0 ) {
-			pthread_cond_wait(&ready_for_read, &rw_lock);
+void start_read(lockunit_t* lockunit) {
+	pthread_mutex_lock(&lockunit->rw_lock);
+		while( lockunit->num_writers > 0 && lockunit->num_waiting_writers > 0 ) {
+			pthread_cond_wait(&lockunit->ready_for_read, &lockunit->rw_lock);
 		}
-		num_readers++;
-	pthread_mutex_unlock(&rw_lock);
+		lockunit->num_readers ++;
+	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
-void end_read() {
-	pthread_mutex_lock(&rw_lock);
-	num_readers--;
-	pthread_cond_signal(&ready_for_write);
-	pthread_mutex_unlock(&rw_lock);
+void end_read(lockunit_t* lockunit) {
+	pthread_mutex_lock(&lockunit->rw_lock);
+	lockunit->num_readers --;
+	pthread_cond_signal(&lockunit->ready_for_write);
+	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
 node_t *search(char *, node_t *, node_t **);
@@ -113,11 +120,16 @@ void node_destroy(node_t * node) {
 }
 
 void query(char *name, char *result, int len) {
-	start_read();
+#ifdef COARSE_LOCK
+	start_read(&db_lockunit);
+#endif
 	node_t *target;
 
 	target = search(name, &head, 0);
-	end_read();
+
+#ifdef COARSE_LOCK
+	end_read(&db_lockunit);
+#endif
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
 		return;
@@ -125,17 +137,20 @@ void query(char *name, char *result, int len) {
 		strncpy(result, target->value, len - 1);
 		return;
 	}
-
 }
 
 int add(char *name, char *value) {
-	start_write();
+#ifdef COARSE_LOCK
+	start_write(&db_lockunit);
+#endif
 	node_t *parent;
 	node_t *target;
 	node_t *newnode;
 
 	if ((target = search(name, &head, &parent)) != 0) {
-		end_write();
+#ifdef COARSE_LOCK
+		end_write(&db_lockunit);
+#endif
 		return 0;
 	}
 
@@ -145,12 +160,16 @@ int add(char *name, char *value) {
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
-	end_write();
+#ifdef COARSE_LOCK
+	end_write(&db_lockunit);
+#endif
 	return 1;
 }
 
 int xremove(char *name) {
-	start_write();
+#ifdef COARSE_LOCK
+	start_write(&db_lockunit);
+#endif
 	node_t *parent;
 	node_t *dnode;
 	node_t *next;
@@ -159,7 +178,9 @@ int xremove(char *name) {
 	/* first, find the node to be removed */
 	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
-		end_write();
+#ifdef COARSE_LOCK
+		end_write(&db_lockunit);
+#endif
 		return 0;
 	}
 
@@ -209,7 +230,9 @@ int xremove(char *name) {
 		*pnext = next->rchild;
 		node_destroy(next);
 	}
-	end_write();
+#ifdef COARSE_LOCK
+	end_write(&db_lockunit);
+#endif
 	return 1;
 }
 
