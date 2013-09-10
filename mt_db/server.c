@@ -109,15 +109,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-#ifdef __RUN_WINDOW_SCRIPT__
-	int i;
-	for(i = 0; i < 10; i++){
-		c = client_create(clientCtr++);
-		pthread_t *theThread = &(c->thread);
-		pthread_create(theThread, NULL, client_run, (void *)c);
-	}
-	scanf("%s", command);
-#else	
 	while(1) {
 		scanf("%s", command);
 		if(strcmp(command, "e") == 0){
@@ -136,6 +127,5 @@ int main(int argc, char *argv[])
 			pthread_mutex_unlock(&run_lock);
 		}
 	}
-#endif
 	return 0;
 }
