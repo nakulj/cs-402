@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 	client_t *c;
 	int clientCtr = 0;
 	char command[256];
-	initDB();
+	init_db();
 	if (argc != 1) {
 		fprintf(stderr, "Usage: server\n");
 		exit(1);
