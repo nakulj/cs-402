@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: server\n");
 		exit(1);
 	}
-	
+
 	while(1) {
 		scanf("%s", command);
 		if(strcmp(command, "e") == 0){
@@ -127,6 +127,5 @@ int main(int argc, char *argv[])
 			pthread_mutex_unlock(&run_lock);
 		}
 	}
-	
 	return 0;
 }
