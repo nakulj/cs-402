@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -I. #-D__RUN_WINDOW_SCRIPT__
+CFLAGS = -g -I. -D__RUN_WINDOW_SCRIPT__
 LDFLAGS = -pthread
 
 all:	server interface
@@ -16,3 +16,4 @@ interface: interface.o
 
 clean:
 	/bin/rm -f *.o server interface
+
