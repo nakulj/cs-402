@@ -188,11 +188,13 @@ void query(char *name, char *result, int len) {
 #endif
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
-		return;
-	} else {
+    }
+	else {
 		strncpy(result, target->value, len - 1);
-		return;
-	}
+#ifdef FINE_LOCK
+        end_read(&target->node_lock);
+#endif
+    }
 }
 
 int add(char *name, char *value) {
@@ -209,6 +211,9 @@ int add(char *name, char *value) {
 	if ((target = search(name, &head, &parent)) != 0) {
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
+#endif
+#ifdef FINE_LOCK
+        end_read(&target->node_lock);
 #endif
 		return 0;
 	}
