@@ -15,6 +15,54 @@ typedef struct {
 	int num_waiting_writers;
 } lockunit_t;
 
+/*
+#ifdef FINE_LOCK
+typedef struct {
+    pthread_mutex_t atomic_op_lock;
+    pthread_cond_t ready_for_atomic_op;
+    int is_atomic_op;
+} atomic_op_t;
+
+// Two relatively atomic operations: reader access against writer destroy,
+// and writer destroy against reader access 
+atomic_op_t atomic_access, atomic_destroy;
+
+void init_atomic_op (atomic_op_t* atomic_op) {
+    atomic_op->is_atomic_op = 0;
+    if (pthread_mutex_init(&atomic_op->atomic_op_lock, NULL) != 0) {
+		printf("\n atomic op lock mutex init failed\n");
+		return;
+	}
+    if (pthread_cond_init(&atomic_op->ready_for_atomic_op, NULL) != 0) {
+		printf("\n atomic op condition variable init failed\n");
+		return;
+	}
+}
+
+void start_atomic_op (atomic_op_t* atomic_op) {
+    pthread_mutex_lock(&atomic_op->atomic_op_lock);
+    if (atomic_op->is_atomic_op)
+        pthread_cond_wait(&atomic_op->ready_for_atomic_op, &atomic_op->atomic_op_lock);
+    atomic_op->is_atomic_op = 1;
+    pthread_mutex_unlock(&atomic_op->atomic_op_lock);    
+}
+
+void end_atomic_op (atomic_op_t* atomic_op) {
+    pthread_mutex_lock(&atomic_op->atomic_op_lock);
+    atomic_op->is_atomic_op = 0;
+    pthread_cond_broadcast(&atomic_op->ready_for_atomic_op);
+    pthread_mutex_unlock(&atomic_op->atomic_op_lock);
+}
+
+void wait_for_atomic_op (atomic_op_t* atomic_op) {
+    pthread_mutex_lock(&atomic_op->atomic_op_lock);
+    if (atomic_op->is_atomic_op)
+        pthread_cond_wait(&atomic_op->ready_for_atomic_op, &atomic_op->atomic_op_lock);
+    pthread_mutex_unlock(&atomic_op->atomic_op_lock);
+}
+#endif
+*/
+
 #ifdef COARSE_LOCK
 lockunit_t db_lockunit;
 
@@ -37,6 +85,11 @@ void init_db() {
 		printf("\n write condition variable init failed\n");
 		return;
 	}
+}
+#elif defined FINE_LOCK
+void init_db() {
+    init_atomic_op(&atomic_access);
+    init_atomic_op(&atomic_destroy);
 }
 #else
 void init_db() {}
@@ -66,7 +119,7 @@ void end_write(lockunit_t* lockunit) {
 
 void start_read(lockunit_t* lockunit) {
 	pthread_mutex_lock(&lockunit->rw_lock);
-		while( lockunit->num_writers > 0 && lockunit->num_waiting_writers > 0 ) {
+		while( lockunit->num_writers > 0 && lockunit->num_waiting_writers > 0 ) { // Why is this && not || - Sam
 			pthread_cond_wait(&lockunit->ready_for_read, &lockunit->rw_lock);
 		}
 		lockunit->num_readers ++;
@@ -125,6 +178,9 @@ void query(char *name, char *result, int len) {
 #endif
 	node_t *target;
 
+#ifdef FINE_LOCK
+    start_read(&head.node_lock);
+#endif
 	target = search(name, &head, 0);
 
 #ifdef COARSE_LOCK
@@ -147,6 +203,9 @@ int add(char *name, char *value) {
 	node_t *target;
 	node_t *newnode;
 
+#ifdef FINE_LOCK
+    start_read(&head.node_lock);
+#endif
 	if ((target = search(name, &head, &parent)) != 0) {
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
@@ -176,6 +235,10 @@ int xremove(char *name) {
 	node_t **pnext;
 
 	/* first, find the node to be removed */
+
+#ifdef FINE_LOCK
+    start_read(&head.node_lock);
+#endif
 	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
 #ifdef COARSE_LOCK
@@ -187,12 +250,11 @@ int xremove(char *name) {
 	/* we found it.  Now check out the easy cases.  If the node has no
 	 * right child, then we can merely replace its parent's pointer to
 	 * it with the node's left child. */
-	if (dnode->rchild == 0) {
+    if (dnode->rchild == 0) {
 		if (strcmp(dnode->name, parent->name) < 0)
 			parent->lchild = dnode->lchild;
 		else
 			parent->rchild = dnode->lchild;
-
 		/* done with dnode */
 		node_destroy(dnode);
 	} else if (dnode->lchild == 0) {
@@ -201,7 +263,6 @@ int xremove(char *name) {
 			parent->lchild = dnode->rchild;
 		else
 			parent->rchild = dnode->rchild;
-
 		/* done with dnode */
 		node_destroy(dnode);
 	} else {
@@ -246,14 +307,24 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	 * the target node, if it were there.
 	 *
 	 * Assumptions:
-	 * parent is not null and it does not contain name */
+	 * parent is not null and it does not contain name
+     * 
+     * part-c assumption: parent is already read locked.*/
 
 	node_t *next;
 	node_t *result;
 
 	if (strcmp(name, parent->name) < 0) {
+#ifdef FINE_LOCK
+        if (parent->lchild != 0)
+            start_read(&parent->lchild->node_lock); 
+#endif
 		next = parent->lchild;
 	} else {
+#ifdef FINE_LOCK
+        if (parent->rchild != 0)
+            start_read(&parent->rchild->node_lock);
+#endif
 		next = parent->rchild;
 	}
 
@@ -264,6 +335,9 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 			result = next;
 		} else {
 			/* "We have to go deeper!" */
+#ifdef FINE_LOCK
+        end_read(&parent->node_lock);
+#endif
 			result = search(name, next, parentpp);
 			return result;
 		}
@@ -272,7 +346,12 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	if (parentpp != 0)
 		*parentpp = parent;
 
+#ifdef FINE_LOCK
+    end_read(&parent->node_lock);
+#endif
 	return (result);
+    // If result is 0, then no need to unlock the result.
+    // If result if not 0, then caller who uses the result needs to unlock it.
 }
 
 void interpret_command(char *command, char *response, int len) {
