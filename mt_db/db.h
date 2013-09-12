@@ -1,5 +1,15 @@
 #include <pthread.h>
 
+typedef struct {
+	pthread_mutex_t rw_lock;
+	pthread_cond_t 	ready_for_read;
+	pthread_cond_t 	ready_for_write;
+
+	int num_readers;
+	int num_writers;
+	int num_waiting_writers;
+} lockunit_t;
+
 typedef struct Node {
 	char *name;
 	char *value;

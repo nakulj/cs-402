@@ -10,20 +10,10 @@
 #define LOCKTYPE_READ 0
 
 #define START_LOCKTYPE(X,Y)    if (X) start_write(Y); \
-    else start_read(Y); \
+    else start_read(Y); 
 #define END_LOCKTYPE(X,Y)    if (X) start_write(Y); \
-    else start_read(Y); \
+    else start_read(Y); 
 #endif
-
-typedef struct {
-	pthread_mutex_t rw_lock;
-	pthread_cond_t 	ready_for_read;
-	pthread_cond_t 	ready_for_write;
-
-	int num_readers;
-	int num_writers;
-	int num_waiting_writers;
-} lockunit_t;
 
 void init_lockunit (lockunit_t* lockunit) {
 	lockunit->num_readers = 0;
@@ -58,7 +48,7 @@ void init_db() {
 }
 #elif defined FINE_LOCK
 void init_db() {
-    init_lockunit(&head->lockunit);
+    init_lockunit(&head.node_lock);
 }
 #else
 void init_db() {}
@@ -102,8 +92,13 @@ void end_read(lockunit_t* lockunit) {
 	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
+
+#ifdef FINE_LOCK
 node_t *search(char *, node_t *, node_t **, int);
 node_t *search_from_head(char*, node_t**, int);
+#else
+node_t *search(char *, node_t *, node_t **);
+#endif
 
 node_t head = {"", "", 0, 0};
 
@@ -116,7 +111,7 @@ node_t *node_create(char *arg_name, char *arg_value,
 		return 0;
 
 #ifdef FINE_LOCK
-    init_lockunit(&new_node->lockunit);
+    init_lockunit(&new_node->node_lock);
 #endif
 
 	if ((new_node->name = (char *) malloc(strlen(arg_name) + 1)) == 0) {
@@ -144,7 +139,9 @@ void node_destroy(node_t * node) {
 		free(node->name);
 	if (node->value != 0)
 		free(node->value);
-    destroy_lockunit(&node->lockunit);
+#ifdef FINE_LOCK
+    destroy_lockunit(&node->node_lock);
+#endif
 	free(node);
 }
 
@@ -154,7 +151,11 @@ void query(char *name, char *result, int len) {
 #endif
 	node_t *target;
 
+#ifdef FINE_LOCK
 	target = search_from_head(name, 0, LOCKTYPE_READ);
+#else
+    target = search(name, &head, 0);
+#endif
 
 #ifdef COARSE_LOCK
 	end_read(&db_lockunit);
@@ -178,13 +179,15 @@ int add(char *name, char *value) {
 	node_t *target;
 	node_t *newnode;
 
-	if ((target = search_from_head(name, &parent, LOCKTYPE_WRITE)) != 0) {
-#ifdef COARSE_LOCK
-		end_write(&db_lockunit);
-#endif
 #ifdef FINE_LOCK
+	if ((target = search_from_head(name, &parent, LOCKTYPE_WRITE)) != 0) {
         end_write(&target->node_lock);
         end_write(&parent->node_lock);
+#else
+    if ((target = search(name, &head, &parent)) != 0) {
+#endif
+#ifdef COARSE_LOCK
+		end_write(&db_lockunit);
 #endif
 		return 0;
 	}
@@ -219,7 +222,7 @@ int xremove(char *name) {
 	/* first, find the node to be removed */
 #ifdef FINE_LOCK
 	if ((dnode = search_from_head(name, &parent, LOCKTYPE_WRITE)) == 0) {
-        end_write(&parent->lockunit);
+        end_write(&parent->node_lock);
 #else
     if ((dnode = search(name, &head, &parent)) == 0) {
 #endif
@@ -267,15 +270,15 @@ int xremove(char *name) {
 		pnext = &dnode->rchild;
 		next = *pnext;
 #ifdef FINE_LOCK
-        start_write(&next->lockunit);
+        start_write(&next->node_lock);
 #endif
 		while (next->lchild != 0) {
 			/* work our way down the lchild chain, finding the smallest node
 			 * in the subtree. */
 			pnext = &next->lchild;
 #ifdef FINE_LOCK
-            start_write(&(*pnext)->lockunit);
-            end_write(&next->lockunit);
+            start_write(&(*pnext)->node_lock);
+            end_write(&next->node_lock);
 #endif
 			next = *pnext;
 		}
@@ -288,7 +291,7 @@ int xremove(char *name) {
 	end_write(&db_lockunit);
 #endif
 #ifdef FINE_LOCK
-    end_write(&parent->lockunit);
+    end_write(&parent->node_lock);
 #endif
     return 1;
 }
@@ -301,16 +304,15 @@ int xremove(char *name) {
  * If the parent is requested (i.e. parentpp != 0), the parent will remain locked too.
  *****/
 node_t *search_from_head(char *name, node_t ** parentpp, int lock_type) {
-    START_LOCKTYPE(lock_type, &head.lockunit);
-
+    START_LOCKTYPE(lock_type, &head.node_lock);
     node_t* target = search(name, &head, parentpp, lock_type);
-
-   
     return target;
 }
-#endif
 
 node_t *search(char *name, node_t * parent, node_t ** parentpp, int lock_type) {
+#else
+node_t *search(char *name, node_t * parent, node_t ** parentpp) {
+#endif
 	/* Search the tree, starting at parent, for a node containing
 	 * name (the "target node").  Return a pointer to the node,
 	 * if found, otherwise return 0.  If parentpp is not 0, then it points
@@ -353,8 +355,10 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp, int lock_type) {
 			/* "We have to go deeper!" */
 #ifdef FINE_LOCK
             END_LOCKTYPE(lock_type, &parent->node_lock);
-#endif
+			result = search(name, next, parentpp, lock_type);
+#else
 			result = search(name, next, parentpp);
+#endif
 			return result;
 		}
 	}
@@ -364,7 +368,7 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp, int lock_type) {
     // If the caller doesn't want parent, unlock the parent.
 #ifdef FINE_LOCK
     else
-        END_LOCKTYPE(lock_type, &(*parentpp)->lockunit);
+        END_LOCKTYPE(lock_type, &(*parentpp)->node_lock);
 #endif
 
     return (result);
