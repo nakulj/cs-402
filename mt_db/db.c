@@ -5,6 +5,16 @@
 #include <stdio.h>
 #include <assert.h>
 
+#ifdef FINE_LOCK
+#define LOCKTYPE_WRITE 1
+#define LOCKTYPE_READ 0
+
+#define START_LOCKTYPE(X,Y)    if (X) start_write(Y); \
+    else start_read(Y); \
+#define END_LOCKTYPE(X,Y)    if (X) start_write(Y); \
+    else start_read(Y); \
+#endif
+
 typedef struct {
 	pthread_mutex_t rw_lock;
 	pthread_cond_t 	ready_for_read;
@@ -15,81 +25,40 @@ typedef struct {
 	int num_waiting_writers;
 } lockunit_t;
 
-/*
-#ifdef FINE_LOCK
-typedef struct {
-    pthread_mutex_t atomic_op_lock;
-    pthread_cond_t ready_for_atomic_op;
-    int is_atomic_op;
-} atomic_op_t;
+void init_lockunit (lockunit_t* lockunit) {
+	lockunit->num_readers = 0;
+	lockunit->num_writers = 0;
+	lockunit->num_waiting_writers = 0;
 
-// Two relatively atomic operations: reader access against writer destroy,
-// and writer destroy against reader access 
-atomic_op_t atomic_access, atomic_destroy;
-
-void init_atomic_op (atomic_op_t* atomic_op) {
-    atomic_op->is_atomic_op = 0;
-    if (pthread_mutex_init(&atomic_op->atomic_op_lock, NULL) != 0) {
-		printf("\n atomic op lock mutex init failed\n");
+	if (pthread_mutex_init(&lockunit->rw_lock, NULL) != 0) {
+		printf("\n db_rw_lock mutex init failed\n");
 		return;
 	}
-    if (pthread_cond_init(&atomic_op->ready_for_atomic_op, NULL) != 0) {
-		printf("\n atomic op condition variable init failed\n");
+
+	if (pthread_cond_init(&lockunit->ready_for_read, NULL) != 0) {
+		printf("\n read condition variable init failed\n");
+		return;
+	}
+
+	if (pthread_cond_init(&lockunit->ready_for_write, NULL) != 0) {
+		printf("\n write condition variable init failed\n");
 		return;
 	}
 }
 
-void start_atomic_op (atomic_op_t* atomic_op) {
-    pthread_mutex_lock(&atomic_op->atomic_op_lock);
-    if (atomic_op->is_atomic_op)
-        pthread_cond_wait(&atomic_op->ready_for_atomic_op, &atomic_op->atomic_op_lock);
-    atomic_op->is_atomic_op = 1;
-    pthread_mutex_unlock(&atomic_op->atomic_op_lock);    
+void destroy_lockunit (lockunit_t* lockunit) {
+    // TODO
 }
-
-void end_atomic_op (atomic_op_t* atomic_op) {
-    pthread_mutex_lock(&atomic_op->atomic_op_lock);
-    atomic_op->is_atomic_op = 0;
-    pthread_cond_broadcast(&atomic_op->ready_for_atomic_op);
-    pthread_mutex_unlock(&atomic_op->atomic_op_lock);
-}
-
-void wait_for_atomic_op (atomic_op_t* atomic_op) {
-    pthread_mutex_lock(&atomic_op->atomic_op_lock);
-    if (atomic_op->is_atomic_op)
-        pthread_cond_wait(&atomic_op->ready_for_atomic_op, &atomic_op->atomic_op_lock);
-    pthread_mutex_unlock(&atomic_op->atomic_op_lock);
-}
-#endif
-*/
 
 #ifdef COARSE_LOCK
 lockunit_t db_lockunit;
 
 void init_db() {
-	db_lockunit.num_readers = 0;
-	db_lockunit.num_writers = 0;
-	db_lockunit.num_waiting_writers = 0;
-
-	if (pthread_mutex_init(&db_lockunit.rw_lock, NULL) != 0) {
-		printf("\n db_rw_lock mutex init failed\n");
-		return;
-	}
-
-	if (pthread_cond_init(&db_lockunit.ready_for_read, NULL) != 0) {
-		printf("\n read condition variable init failed\n");
-		return;
-	}
-
-	if (pthread_cond_init(&db_lockunit.ready_for_write, NULL) != 0) {
-		printf("\n write condition variable init failed\n");
-		return;
-	}
+    init_lockunit(&db_lockunit);
 }
 #elif defined FINE_LOCK
 void init_db() {
-    init_atomic_op(&atomic_access);
-    init_atomic_op(&atomic_destroy);
+    init_lockunit(&head->lockunit);
 }
 #else
 void init_db() {}
@@ -119,7 +88,7 @@ void end_write(lockunit_t* lockunit) {
 
 void start_read(lockunit_t* lockunit) {
 	pthread_mutex_lock(&lockunit->rw_lock);
-		while( lockunit->num_writers > 0 && lockunit->num_waiting_writers > 0 ) { // Why is this && not || - Sam
+		while( lockunit->num_writers > 0 || lockunit->num_waiting_writers > 0 ) {
 			pthread_cond_wait(&lockunit->ready_for_read, &lockunit->rw_lock);
 		}
 		lockunit->num_readers ++;
@@ -133,7 +102,8 @@ void end_read(lockunit_t* lockunit) {
 	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
-node_t *search(char *, node_t *, node_t **);
+node_t *search(char *, node_t *, node_t **, int);
+node_t *search_from_head(char*, node_t**, int);
 
 node_t head = {"", "", 0, 0};
 
@@ -144,6 +114,10 @@ node_t *node_create(char *arg_name, char *arg_value,
 	new_node = (node_t *) malloc(sizeof (node_t));
 	if (new_node == 0)
 		return 0;
+
+#ifdef FINE_LOCK
+    init_lockunit(&new_node->lockunit);
+#endif
 
 	if ((new_node->name = (char *) malloc(strlen(arg_name) + 1)) == 0) {
 		free(new_node);
@@ -158,6 +132,7 @@ node_t *node_create(char *arg_name, char *arg_value,
 
 	strcpy(new_node->name, arg_name);
 	strcpy(new_node->value, arg_value);
+
 	new_node->lchild = arg_left;
 	new_node->rchild = arg_right;
 
@@ -169,6 +144,7 @@ void node_destroy(node_t * node) {
 		free(node->name);
 	if (node->value != 0)
 		free(node->value);
+    destroy_lockunit(&node->lockunit);
 	free(node);
 }
 
@@ -178,10 +154,7 @@ void query(char *name, char *result, int len) {
 #endif
 	node_t *target;
 
-#ifdef FINE_LOCK
-    start_read(&head.node_lock);
-#endif
-	target = search(name, &head, 0);
+	target = search_from_head(name, 0, LOCKTYPE_READ);
 
 #ifdef COARSE_LOCK
 	end_read(&db_lockunit);
@@ -205,25 +178,29 @@ int add(char *name, char *value) {
 	node_t *target;
 	node_t *newnode;
 
-#ifdef FINE_LOCK
-    start_read(&head.node_lock);
-#endif
-	if ((target = search(name, &head, &parent)) != 0) {
+	if ((target = search_from_head(name, &parent, LOCKTYPE_WRITE)) != 0) {
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
 #endif
 #ifdef FINE_LOCK
-        end_read(&target->node_lock);
+        end_write(&target->node_lock);
+        end_write(&parent->node_lock);
 #endif
 		return 0;
 	}
-
-	newnode = node_create(name, value, 0, 0);
-
-	if (strcmp(name, parent->name) < 0)
+	
+    newnode = node_create(name, value, 0, 0);
+	
+// No locking on new node since the parent is alreayd locked
+// so no other clients can access the new node.
+    if (strcmp(name, parent->name) < 0)
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
+
+#ifdef FINE_LOCK
+    end_write(&parent->node_lock);
+#endif
 #ifdef COARSE_LOCK
 	end_write(&db_lockunit);
 #endif
@@ -240,17 +217,20 @@ int xremove(char *name) {
 	node_t **pnext;
 
 	/* first, find the node to be removed */
-
 #ifdef FINE_LOCK
-    start_read(&head.node_lock);
+	if ((dnode = search_from_head(name, &parent, LOCKTYPE_WRITE)) == 0) {
+        end_write(&parent->lockunit);
+#else
+    if ((dnode = search(name, &head, &parent)) == 0) {
 #endif
-	if ((dnode = search(name, &head, &parent)) == 0) {
 		/* it's not there */
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
 #endif
 		return 0;
 	}
+
+// note for Part C: at this stage both parent and dnode are locked.
 
 	/* we found it.  Now check out the easy cases.  If the node has no
 	 * right child, then we can merely replace its parent's pointer to
@@ -283,12 +263,20 @@ int xremove(char *name) {
 
 		/* pnext is the address of the pointer which points to next (either parent's
 		 * lchild or rchild) */
+
 		pnext = &dnode->rchild;
 		next = *pnext;
+#ifdef FINE_LOCK
+        start_write(&next->lockunit);
+#endif
 		while (next->lchild != 0) {
 			/* work our way down the lchild chain, finding the smallest node
 			 * in the subtree. */
 			pnext = &next->lchild;
+#ifdef FINE_LOCK
+            start_write(&(*pnext)->lockunit);
+            end_write(&next->lockunit);
+#endif
 			next = *pnext;
 		}
 		strcpy(dnode->name, next->name);
@@ -299,10 +287,30 @@ int xremove(char *name) {
 #ifdef COARSE_LOCK
 	end_write(&db_lockunit);
 #endif
-	return 1;
+#ifdef FINE_LOCK
+    end_write(&parent->lockunit);
+#endif
+    return 1;
 }
 
-node_t *search(char *name, node_t * parent, node_t ** parentpp) {
+#ifdef FINE_LOCK
+/*****
+ * search_from_head: basically, it will lock the head and as it searches, it unlocks
+ * the original parent of the node and locks the child of the node, and simply continues.
+ * If an node is returned, it will remain locked for future used.
+ * If the parent is requested (i.e. parentpp != 0), the parent will remain locked too.
+ *****/
+node_t *search_from_head(char *name, node_t ** parentpp, int lock_type) {
+    START_LOCKTYPE(lock_type, &head.lockunit);
+
+    node_t* target = search(name, &head, parentpp, lock_type);
+
+   
+    return target;
+}
+#endif
+
+node_t *search(char *name, node_t * parent, node_t ** parentpp, int lock_type) {
 	/* Search the tree, starting at parent, for a node containing
 	 * name (the "target node").  Return a pointer to the node,
 	 * if found, otherwise return 0.  If parentpp is not 0, then it points
@@ -311,10 +319,12 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	 * by parentpp is set to what would be the the address of the parent of
 	 * the target node, if it were there.
 	 *
+     * lock_type: 0 is read lock, 1 is write lock
+     *
 	 * Assumptions:
 	 * parent is not null and it does not contain name
      * 
-     * part-c assumption: parent is already read locked.*/
+     * part-c assumption: parent is already read locked. */
 
 	node_t *next;
 	node_t *result;
@@ -322,13 +332,14 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	if (strcmp(name, parent->name) < 0) {
 #ifdef FINE_LOCK
         if (parent->lchild != 0)
-            start_read(&parent->lchild->node_lock); 
+            START_LOCKTYPE(lock_type, &parent->lchild->node_lock)
 #endif
 		next = parent->lchild;
 	} else {
 #ifdef FINE_LOCK
+        // Lock the right child.
         if (parent->rchild != 0)
-            start_read(&parent->rchild->node_lock);
+            START_LOCKTYPE(lock_type, &parent->rchild->node_lock);
 #endif
 		next = parent->rchild;
 	}
@@ -341,7 +352,7 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 		} else {
 			/* "We have to go deeper!" */
 #ifdef FINE_LOCK
-        end_read(&parent->node_lock);
+            END_LOCKTYPE(lock_type, &parent->node_lock);
 #endif
 			result = search(name, next, parentpp);
 			return result;
@@ -350,11 +361,14 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 
 	if (parentpp != 0)
 		*parentpp = parent;
-
+    // If the caller doesn't want parent, unlock the parent.
 #ifdef FINE_LOCK
-    end_read(&parent->node_lock);
+    else
+        END_LOCKTYPE(lock_type, &(*parentpp)->lockunit);
 #endif
-	return (result);
+
+    return (result);
+    // The parent of result will remain locked for caller if parentpp is not 0.
     // If result is 0, then no need to unlock the result.
     // If result if not 0, then caller who uses the result needs to unlock it.
 }
