@@ -120,8 +120,6 @@ int main(int argc, char *argv[])
 		pthread_t *theThread = &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
 	}
-	scanf("%s", command);
-#else
 	while(1) {
 		scanf("%s", command);
 		if(strcmp(command, "e") == 0){

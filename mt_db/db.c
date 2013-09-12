@@ -11,8 +11,8 @@
 
 #define START_LOCKTYPE(X,Y)    if (X) start_write(Y); \
     else start_read(Y); 
-#define END_LOCKTYPE(X,Y)    if (X) start_write(Y); \
-    else start_read(Y); 
+#define END_LOCKTYPE(X,Y)    if (X) end_write(Y); \
+    else end_read(Y); 
 #endif
 
 void init_lockunit (lockunit_t* lockunit) {
@@ -37,7 +37,9 @@ void init_lockunit (lockunit_t* lockunit) {
 }
 
 void destroy_lockunit (lockunit_t* lockunit) {
-    // TODO
+    pthread_mutex_destroy(&lockunit->rw_lock);
+    pthread_cond_destroy(&lockunit->ready_for_write);
+    pthread_cond_destroy(&lockunit->ready_for_read);
 }
 
 #ifdef COARSE_LOCK
@@ -286,6 +288,9 @@ int xremove(char *name) {
 		strcpy(dnode->value, next->value);
 		*pnext = next->rchild;
 		node_destroy(next);
+#ifdef FINE_LOCK
+        end_write(&dnode->node_lock);
+#endif
 	}
 #ifdef COARSE_LOCK
 	end_write(&db_lockunit);
@@ -332,19 +337,15 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	node_t *result;
 
 	if (strcmp(name, parent->name) < 0) {
-#ifdef FINE_LOCK
-        if (parent->lchild != 0)
-            START_LOCKTYPE(lock_type, &parent->lchild->node_lock)
-#endif
 		next = parent->lchild;
 	} else {
-#ifdef FINE_LOCK
-        // Lock the right child.
-        if (parent->rchild != 0)
-            START_LOCKTYPE(lock_type, &parent->rchild->node_lock);
-#endif
 		next = parent->rchild;
 	}
+
+#ifdef FINE_LOCK
+    if (next != 0)
+            START_LOCKTYPE(lock_type, &next->node_lock);
+#endif
 
 	if (next == 0) {
 		result = 0;
@@ -368,7 +369,7 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
     // If the caller doesn't want parent, unlock the parent.
 #ifdef FINE_LOCK
     else
-        END_LOCKTYPE(lock_type, &(*parentpp)->node_lock);
+        END_LOCKTYPE(lock_type, &parent->node_lock);
 #endif
 
     return (result);
@@ -377,10 +378,26 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
     // If result if not 0, then caller who uses the result needs to unlock it.
 }
 
+#ifdef PRINT_DEBUG_INFO
+void print_db(node_t* current_node, int level, char side) {
+    printf("%d-%c %s : w %d  r %d  q %d\n", level, side, current_node->name, current_node->node_lock.num_writers, current_node->node_lock.num_readers, current_node->node_lock.num_waiting_writers);
+    if(current_node->lchild!=0)
+        print_db(current_node->lchild, level+1, 'l');
+    if(current_node->rchild!=0)
+        print_db(current_node->rchild, level+1, 'r');
+}
+#endif
+
+long counter = 0;
 void interpret_command(char *command, char *response, int len) {
 	char value[256];
 	char ibuf[256];
 	char name[256];
+
+#ifdef PRINT_DEBUG_INFO
+    printf("====== %d =======\n", counter++);
+    print_db(&head, 0, ' ');
+#endif
 
 	if (strlen(command) <= 1) {
 		strncpy(response, "ill-formed command", len - 1);
