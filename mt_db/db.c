@@ -5,38 +5,52 @@
 #include <stdio.h>
 #include <assert.h>
 
-typedef struct {
-	pthread_mutex_t rw_lock;
-	pthread_cond_t 	ready_for_read;
-	pthread_cond_t 	ready_for_write;
+#ifdef FINE_LOCK
+#define LOCKTYPE_WRITE 1
+#define LOCKTYPE_READ 0
 
-	int num_readers;
-	int num_writers;
-	int num_waiting_writers;
-} lockunit_t;
+#define START_LOCKTYPE(X,Y)    if (X) start_write(Y); \
+    else start_read(Y); 
+#define END_LOCKTYPE(X,Y)    if (X) end_write(Y); \
+    else end_read(Y); 
+#endif
+
+void init_lockunit (lockunit_t* lockunit) {
+	lockunit->num_readers = 0;
+	lockunit->num_writers = 0;
+	lockunit->num_waiting_writers = 0;
+
+	if (pthread_mutex_init(&lockunit->rw_lock, NULL) != 0) {
+		printf("\n db_rw_lock mutex init failed\n");
+		return;
+	}
+
+	if (pthread_cond_init(&lockunit->ready_for_read, NULL) != 0) {
+		printf("\n read condition variable init failed\n");
+		return;
+	}
+
+	if (pthread_cond_init(&lockunit->ready_for_write, NULL) != 0) {
+		printf("\n write condition variable init failed\n");
+		return;
+	}
+}
+
+void destroy_lockunit (lockunit_t* lockunit) {
+    pthread_mutex_destroy(&lockunit->rw_lock);
+    pthread_cond_destroy(&lockunit->ready_for_write);
+    pthread_cond_destroy(&lockunit->ready_for_read);
+}
 
 #ifdef COARSE_LOCK
 lockunit_t db_lockunit;
 
 void init_db() {
-	db_lockunit.num_readers = 0;
-	db_lockunit.num_writers = 0;
-	db_lockunit.num_waiting_writers = 0;
-
-	if (pthread_mutex_init(&db_lockunit.rw_lock, NULL) != 0) {
-		printf("\n db_rw_lock mutex init failed\n");
-		return;
-	}
-
-	if (pthread_cond_init(&db_lockunit.ready_for_read, NULL) != 0) {
-		printf("\n read condition variable init failed\n");
-		return;
-	}
-
-	if (pthread_cond_init(&db_lockunit.ready_for_write, NULL) != 0) {
-		printf("\n write condition variable init failed\n");
-		return;
-	}
+    init_lockunit(&db_lockunit);
+}
+#elif defined FINE_LOCK
+void init_db() {
+    init_lockunit(&head.node_lock);
 }
 #else
 void init_db() {}
@@ -66,7 +80,7 @@ void end_write(lockunit_t* lockunit) {
 
 void start_read(lockunit_t* lockunit) {
 	pthread_mutex_lock(&lockunit->rw_lock);
-		while( lockunit->num_writers > 0 && lockunit->num_waiting_writers > 0 ) {
+		while( lockunit->num_writers > 0 || lockunit->num_waiting_writers > 0 ) {
 			pthread_cond_wait(&lockunit->ready_for_read, &lockunit->rw_lock);
 		}
 		lockunit->num_readers ++;
@@ -80,7 +94,13 @@ void end_read(lockunit_t* lockunit) {
 	pthread_mutex_unlock(&lockunit->rw_lock);
 }
 
+
+#ifdef FINE_LOCK
+node_t *search(char *, node_t *, node_t **, int);
+node_t *search_from_head(char*, node_t**, int);
+#else
 node_t *search(char *, node_t *, node_t **);
+#endif
 
 node_t head = {"", "", 0, 0};
 
@@ -91,6 +111,10 @@ node_t *node_create(char *arg_name, char *arg_value,
 	new_node = (node_t *) malloc(sizeof (node_t));
 	if (new_node == 0)
 		return 0;
+
+#ifdef FINE_LOCK
+    init_lockunit(&new_node->node_lock);
+#endif
 
 	if ((new_node->name = (char *) malloc(strlen(arg_name) + 1)) == 0) {
 		free(new_node);
@@ -105,6 +129,7 @@ node_t *node_create(char *arg_name, char *arg_value,
 
 	strcpy(new_node->name, arg_name);
 	strcpy(new_node->value, arg_value);
+
 	new_node->lchild = arg_left;
 	new_node->rchild = arg_right;
 
@@ -116,6 +141,9 @@ void node_destroy(node_t * node) {
 		free(node->name);
 	if (node->value != 0)
 		free(node->value);
+#ifdef FINE_LOCK
+    destroy_lockunit(&node->node_lock);
+#endif
 	free(node);
 }
 
@@ -125,18 +153,24 @@ void query(char *name, char *result, int len) {
 #endif
 	node_t *target;
 
-	target = search(name, &head, 0);
+#ifdef FINE_LOCK
+	target = search_from_head(name, 0, LOCKTYPE_READ);
+#else
+    target = search(name, &head, 0);
+#endif
 
 #ifdef COARSE_LOCK
 	end_read(&db_lockunit);
 #endif
 	if (target == 0) {
 		strncpy(result, "not found", len - 1);
-		return;
-	} else {
+    }
+	else {
 		strncpy(result, target->value, len - 1);
-		return;
-	}
+#ifdef FINE_LOCK
+        end_read(&target->node_lock);
+#endif
+    }
 }
 
 int add(char *name, char *value) {
@@ -147,19 +181,31 @@ int add(char *name, char *value) {
 	node_t *target;
 	node_t *newnode;
 
-	if ((target = search(name, &head, &parent)) != 0) {
+#ifdef FINE_LOCK
+	if ((target = search_from_head(name, &parent, LOCKTYPE_WRITE)) != 0) {
+        end_write(&target->node_lock);
+        end_write(&parent->node_lock);
+#else
+    if ((target = search(name, &head, &parent)) != 0) {
+#endif
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
 #endif
 		return 0;
 	}
-
-	newnode = node_create(name, value, 0, 0);
-
-	if (strcmp(name, parent->name) < 0)
+	
+    newnode = node_create(name, value, 0, 0);
+	
+// No locking on new node since the parent is alreayd locked
+// so no other clients can access the new node.
+    if (strcmp(name, parent->name) < 0)
 		parent->lchild = newnode;
 	else
 		parent->rchild = newnode;
+
+#ifdef FINE_LOCK
+    end_write(&parent->node_lock);
+#endif
 #ifdef COARSE_LOCK
 	end_write(&db_lockunit);
 #endif
@@ -176,7 +222,12 @@ int xremove(char *name) {
 	node_t **pnext;
 
 	/* first, find the node to be removed */
-	if ((dnode = search(name, &head, &parent)) == 0) {
+#ifdef FINE_LOCK
+	if ((dnode = search_from_head(name, &parent, LOCKTYPE_WRITE)) == 0) {
+        end_write(&parent->node_lock);
+#else
+    if ((dnode = search(name, &head, &parent)) == 0) {
+#endif
 		/* it's not there */
 #ifdef COARSE_LOCK
 		end_write(&db_lockunit);
@@ -184,15 +235,16 @@ int xremove(char *name) {
 		return 0;
 	}
 
+// note for Part C: at this stage both parent and dnode are locked.
+
 	/* we found it.  Now check out the easy cases.  If the node has no
 	 * right child, then we can merely replace its parent's pointer to
 	 * it with the node's left child. */
-	if (dnode->rchild == 0) {
+    if (dnode->rchild == 0) {
 		if (strcmp(dnode->name, parent->name) < 0)
 			parent->lchild = dnode->lchild;
 		else
 			parent->rchild = dnode->lchild;
-
 		/* done with dnode */
 		node_destroy(dnode);
 	} else if (dnode->lchild == 0) {
@@ -201,7 +253,6 @@ int xremove(char *name) {
 			parent->lchild = dnode->rchild;
 		else
 			parent->rchild = dnode->rchild;
-
 		/* done with dnode */
 		node_destroy(dnode);
 	} else {
@@ -217,26 +268,56 @@ int xremove(char *name) {
 
 		/* pnext is the address of the pointer which points to next (either parent's
 		 * lchild or rchild) */
+
 		pnext = &dnode->rchild;
 		next = *pnext;
+#ifdef FINE_LOCK
+        start_write(&next->node_lock);
+#endif
 		while (next->lchild != 0) {
 			/* work our way down the lchild chain, finding the smallest node
 			 * in the subtree. */
 			pnext = &next->lchild;
+#ifdef FINE_LOCK
+            start_write(&(*pnext)->node_lock);
+            end_write(&next->node_lock);
+#endif
 			next = *pnext;
 		}
 		strcpy(dnode->name, next->name);
 		strcpy(dnode->value, next->value);
 		*pnext = next->rchild;
 		node_destroy(next);
+#ifdef FINE_LOCK
+        end_write(&dnode->node_lock);
+#endif
 	}
 #ifdef COARSE_LOCK
 	end_write(&db_lockunit);
 #endif
-	return 1;
+#ifdef FINE_LOCK
+    end_write(&parent->node_lock);
+#endif
+    return 1;
 }
 
+#ifdef FINE_LOCK
+/*****
+ * search_from_head: basically, it will lock the head and as it searches, it unlocks
+ * the original parent of the node and locks the child of the node, and simply continues.
+ * If an node is returned, it will remain locked for future used.
+ * If the parent is requested (i.e. parentpp != 0), the parent will remain locked too.
+ *****/
+node_t *search_from_head(char *name, node_t ** parentpp, int lock_type) {
+    START_LOCKTYPE(lock_type, &head.node_lock);
+    node_t* target = search(name, &head, parentpp, lock_type);
+    return target;
+}
+
+node_t *search(char *name, node_t * parent, node_t ** parentpp, int lock_type) {
+#else
 node_t *search(char *name, node_t * parent, node_t ** parentpp) {
+#endif
 	/* Search the tree, starting at parent, for a node containing
 	 * name (the "target node").  Return a pointer to the node,
 	 * if found, otherwise return 0.  If parentpp is not 0, then it points
@@ -245,8 +326,12 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 	 * by parentpp is set to what would be the the address of the parent of
 	 * the target node, if it were there.
 	 *
+     * lock_type: 0 is read lock, 1 is write lock
+     *
 	 * Assumptions:
-	 * parent is not null and it does not contain name */
+	 * parent is not null and it does not contain name
+     * 
+     * part-c assumption: parent is already read locked. */
 
 	node_t *next;
 	node_t *result;
@@ -257,6 +342,11 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 		next = parent->rchild;
 	}
 
+#ifdef FINE_LOCK
+    if (next != 0)
+            START_LOCKTYPE(lock_type, &next->node_lock);
+#endif
+
 	if (next == 0) {
 		result = 0;
 	} else {
@@ -264,21 +354,50 @@ node_t *search(char *name, node_t * parent, node_t ** parentpp) {
 			result = next;
 		} else {
 			/* "We have to go deeper!" */
+#ifdef FINE_LOCK
+            END_LOCKTYPE(lock_type, &parent->node_lock);
+			result = search(name, next, parentpp, lock_type);
+#else
 			result = search(name, next, parentpp);
+#endif
 			return result;
 		}
 	}
 
 	if (parentpp != 0)
 		*parentpp = parent;
+    // If the caller doesn't want parent, unlock the parent.
+#ifdef FINE_LOCK
+    else
+        END_LOCKTYPE(lock_type, &parent->node_lock);
+#endif
 
-	return (result);
+    return (result);
+    // The parent of result will remain locked for caller if parentpp is not 0.
+    // If result is 0, then no need to unlock the result.
+    // If result if not 0, then caller who uses the result needs to unlock it.
 }
 
+#ifdef PRINT_DEBUG_INFO
+void print_db(node_t* current_node, int level, char side) {
+    printf("%d-%c %s : w %d  r %d  q %d\n", level, side, current_node->name, current_node->node_lock.num_writers, current_node->node_lock.num_readers, current_node->node_lock.num_waiting_writers);
+    if(current_node->lchild!=0)
+        print_db(current_node->lchild, level+1, 'l');
+    if(current_node->rchild!=0)
+        print_db(current_node->rchild, level+1, 'r');
+}
+#endif
+
+long counter = 0;
 void interpret_command(char *command, char *response, int len) {
 	char value[256];
 	char ibuf[256];
 	char name[256];
+
+#ifdef PRINT_DEBUG_INFO
+    printf("====== %d =======\n", counter++);
+    print_db(&head, 0, ' ');
+#endif
 
 	if (strlen(command) <= 1) {
 		strncpy(response, "ill-formed command", len - 1);
