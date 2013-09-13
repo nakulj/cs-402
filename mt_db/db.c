@@ -9,10 +9,10 @@
 #define LOCKTYPE_WRITE 1
 #define LOCKTYPE_READ 0
 
-#define START_LOCKTYPE(X,Y)    if (X) start_write(Y); \
-    else start_read(Y); 
-#define END_LOCKTYPE(X,Y)    if (X) end_write(Y); \
-    else end_read(Y); 
+#define START_LOCKTYPE(MACRO_LOCKTYPE, MACRO_NODE_PTR)    if (MACRO_LOCKTYPE) start_write(MACRO_NODE_PTR); \
+    else start_read(MACRO_NODE_PTR); 
+#define END_LOCKTYPE(MACRO_LOCKTYPE, MACRO_NODE_PTR)    if (MACRO_LOCKTYPE) end_write(MACRO_NODE_PTR); \
+    else end_read(MACRO_NODE_PTR); 
 #endif
 
 void init_lockunit (lockunit_t* lockunit) {

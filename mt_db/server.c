@@ -120,6 +120,7 @@ int main(int argc, char *argv[])
 		pthread_t *theThread = &(c->thread);
 		pthread_create(theThread, NULL, client_run, (void *)c);
 	}
+#endif
 	while(1) {
 		scanf("%s", command);
 		if(strcmp(command, "e") == 0){
@@ -138,6 +139,5 @@ int main(int argc, char *argv[])
 			pthread_mutex_unlock(&run_lock);
 		}
 	}
-#endif
 	return 0;
 }
