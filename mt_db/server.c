@@ -109,18 +109,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-/*****
- * TODO: 	Remove ifdef code before merging to dev or master.
- *			This code is for team testing purposes only.
- *****/ 
-#ifdef __RUN_WINDOW_SCRIPT__
-	int i;
-	for(i = 0; i < 10; i++){
-		c = client_create(clientCtr++);
-		pthread_t *theThread = &(c->thread);
-		pthread_create(theThread, NULL, client_run, (void *)c);
-	}
-#endif
 	while(1) {
 		scanf("%s", command);
 		if(strcmp(command, "e") == 0){
