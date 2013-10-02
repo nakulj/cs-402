@@ -15,6 +15,8 @@
 #include "userprog/process.h"
 #endif
 
+#include "threads/ready_list.h"
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -198,8 +200,12 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Add to run queue. */
+  /* Add to ready queue. */
   thread_unblock (t);
+  
+  /* Compare with running thread */
+  if(thread_current()->priority < t->priority)
+    thread_yield();
 
   return tid;
 }
@@ -335,7 +341,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  int old_priority = thread_current ()->priority;
   thread_current ()->priority = new_priority;
+  if (new_priority < old_priority)
+    thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -492,8 +501,12 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else {
+    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    struct list_elem* max = list_max (&ready_list, priority_less, NULL);
+    list_remove(max);
+    return list_entry (max, struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
