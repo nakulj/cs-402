@@ -195,9 +195,27 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-
+  
+  thread* acquirer = thread_current();
+  thread* holder = lock->holder;
+  
+  // save old donated priority
+  int holder_old_donated_priority = holder->donated_priority;
+  
+  // donate priority
+  bool donate = holder->get_priority() < acquirer->get_priority();
+  if (donate) {
+    holder->set_donated_priority(acquirer->get_priority());
+  }
+  
+  // wait for the other to release
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  
+  // restore old priority.
+  if (donate) {
+    holder->set_donated_priority(holder_old_donated_priority);
+  }
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

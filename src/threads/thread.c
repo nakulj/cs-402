@@ -102,6 +102,11 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
+// P2
+int get_priority (struct thread* t) {
+  return t->donated_thread > t->base_thread ? t->donated_thread : t->base_thread;
+}
+
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
@@ -313,7 +318,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
+  if (cur != idle_thread)
+  // TODO: round rubin
     list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
@@ -470,7 +476,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->base_priority = priority;
+  t->donated_priority = 0; //P2
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
