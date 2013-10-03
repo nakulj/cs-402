@@ -43,7 +43,7 @@ static void
 acquire_thread_func (void *lock_) 
 {
   struct lock *lock = lock_;
-
+  msg ("acquire: getting the lock");
   lock_acquire (lock);
   msg ("acquire: got the lock");
   lock_release (lock);

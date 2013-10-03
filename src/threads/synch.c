@@ -181,6 +181,16 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
+// P2
+
+#define THREAD_MAGIC 0xcd6abf4b
+static bool
+is_thread (struct thread *t)
+{
+  return t != NULL && t->magic == THREAD_MAGIC;
+}
+
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -198,6 +208,12 @@ lock_acquire (struct lock *lock)
   
   struct thread* acquirer = thread_current();
   struct thread* holder = lock->holder;
+
+  if (!is_thread(holder)) {
+    sema_down (&lock->semaphore);
+    lock->holder = thread_current ();
+    return;
+  }
   
   // save old donated priority
   int holder_old_donated_priority = holder->donated_priority;
@@ -251,6 +267,8 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+  
+  thread_yield();
 }
 
 /* Returns true if the current thread holds LOCK, false
