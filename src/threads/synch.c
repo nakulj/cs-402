@@ -196,16 +196,16 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   
-  thread* acquirer = thread_current();
-  thread* holder = lock->holder;
+  struct thread* acquirer = thread_current();
+  struct thread* holder = lock->holder;
   
   // save old donated priority
   int holder_old_donated_priority = holder->donated_priority;
   
   // donate priority
-  bool donate = holder->get_priority() < acquirer->get_priority();
+  bool donate = get_priority(holder) < get_priority(acquirer);
   if (donate) {
-    holder->set_donated_priority(acquirer->get_priority());
+    holder->donated_priority = get_priority(acquirer);
   }
   
   // wait for the other to release
@@ -214,7 +214,7 @@ lock_acquire (struct lock *lock)
   
   // restore old priority.
   if (donate) {
-    holder->set_donated_priority(holder_old_donated_priority);
+    holder->donated_priority = holder_old_donated_priority;
   }
 }
 

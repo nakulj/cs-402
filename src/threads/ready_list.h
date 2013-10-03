@@ -4,10 +4,11 @@
 #include "lib/kernel/list.h"
 #include "threads/thread.h"
 
+/*
 typedef struct {
 	struct list ready_list;
 } ready_list_t;
-
+*/
 
 static bool
 priority_less (const struct list_elem *a_, const struct list_elem *b_,
@@ -16,7 +17,7 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
   
-  return a->get_priority() < b->get_priority();
+  return get_priority(a) < get_priority(b);
 }
 
 
