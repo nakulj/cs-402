@@ -31,6 +31,17 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include <stdlib.h>
+
+// ---- P2 -----     
+
+struct lock_list_elem {
+  struct list_elem elem;
+  struct lock* lock;
+};
+
+// ---- End ----
+
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -180,6 +191,8 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  struct lock_list_elem* lock_list_new = malloc(sizeof(struct lock_list_elem));
+  list_push_back(&lock_list, &lock_list_new->elem);
   list_init (&lock->waiter_list); // P2
   sema_init (&lock->semaphore, 1);
 }
@@ -199,22 +212,34 @@ waiter_list_priority_less (const struct list_elem *a_, const struct list_elem *b
 {
   const struct thread *a = list_entry (a_, struct waiter_list_elem, elem)->waiter;
   const struct thread *b = list_entry (b_, struct waiter_list_elem, elem)->waiter;
-  
   return a->effective_priority < b->effective_priority;
 }
 
-int calculate_donated_priority (struct lock* lock) {   
-   struct waiter_list_elem* max = list_entry (list_max (lock->waiter_list, waiter_list_priority_less, NULL), struct waiter_elem, elem);
-   return max->waiter->effective_priority;
+int calculate_donated_priority (struct thread* holder) {
+  int max_overall = 0;
+  struct list_elem* e;
+  for (e = &lock_list.head; e != list_end (&lock_list); e = list_next (e)) {
+    struct lock* lock = list_entry(e, struct lock_list_elem, elem)->lock; 
+    if (lock->holder == holder) {
+      if (list_size(&lock->waiter_list) == 0) continue;
+      struct list_elem* max_elem = list_max (&lock->waiter_list, waiter_list_priority_less, NULL); 
+      struct waiter_list_elem* max = list_entry (max_elem, struct waiter_list_elem, elem);
+      if (max_overall < max->waiter->effective_priority) max_overall = max->waiter->effective_priority;   
+    }
+  }
+  return max_overall;
 }
 
 void donate_priority (struct thread* holder, int donation) {
-   bool is_donation_bigger = donation > holder->base_priority;   
-   holder->donated_priority = is_donation_bigger ? donation : 0;
-   if (is_donation_bigger)
-      cur->effective_priority = donation;
-   else
-      cur->effective_priority = base_priority;      
+   int old_effective_priority = holder->effective_priority;
+   if (donation > holder->base_priority) {
+      holder->donated_priority = donation;
+      holder->effective_priority = donation;
+   } else {
+      holder->donated_priority = 0;
+      holder->effective_priority = holder->base_priority;
+   }
+   thread_yield();
 }
 
 // -------------------------------------------------------------------------------
@@ -244,22 +269,31 @@ lock_acquire (struct lock *lock)
   }
   
   // put acquirer on waiting list
-  struct waiter_list_elem* waiter_list_elem_acquirer = malloc(sizeof(waiters_elem));
+  struct waiter_list_elem* waiter_list_elem_acquirer = malloc(sizeof(struct waiter_list_elem));
   waiter_list_elem_acquirer->waiter = acquirer;
-  list_push_back(&lock->waiter_list, waiter_list_elem_acquirer);
+  list_push_back(&lock->waiter_list, &waiter_list_elem_acquirer->elem);
   
   // calculate and assign donate priority.
-  donate_priority (holder, calculate_donated_priority(lock));
+  donate_priority (holder, calculate_donated_priority(holder));
    
   // wait for the other to release
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   
   // remove acquirer from waiting list
-  free(list_remove (waiter_list_elem_acquirer));  
+  list_remove (&waiter_list_elem_acquirer->elem);
+  free(waiter_list_elem_acquirer);  
   
   // calculate and assign the new donate priority.
-  donate_priority (holder, calculate_donated_priority(lock));
+  
+/*  struct list_elem* e;
+  printf(" --- af %d ---", list_size(&lock->waiter_list));
+  for (e = &lock->waiter_list.head; e != list_end (&lock->waiter_list); e = list_next (e))
+  {
+      printf("%d - ",  list_entry (e, struct waiter_list_elem, elem)->waiter->tid);
+  }*/
+    
+  donate_priority (holder, calculate_donated_priority(holder));
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -268,6 +302,9 @@ lock_acquire (struct lock *lock)
 
    This function will not sleep, so it may be called within an
    interrupt handler. */
+   
+// TODO: modify for P2
+
 bool
 lock_try_acquire (struct lock *lock)
 {

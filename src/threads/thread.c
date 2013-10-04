@@ -94,6 +94,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&lock_list);   
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -476,7 +477,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->base_priority = priority;
   t->donated_priority = 0; //P2
-  t->effective_priority = 0; //P2
+  t->effective_priority = priority; //P2
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -597,7 +598,14 @@ allocate_tid (void)
 
   return tid;
 }
-
+// P2
+int thread_get_base_priority() {
+  return thread_current()->base_priority;
+}
+int thread_get_donated_priority() {
+  return thread_current()->donated_priority;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
