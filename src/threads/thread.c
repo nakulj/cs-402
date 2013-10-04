@@ -102,11 +102,6 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
-// P2
-int get_priority (struct thread* t) {
-  return t->donated_priority > t->base_priority ? t->donated_priority : t->base_priority;
-}
-
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
@@ -209,7 +204,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
   
   /* Compare with running thread */
-  if(get_priority(thread_current()) < get_priority(t))
+  if(thread_current()->effective_priority < t->effective_priority)
     thread_yield();
 
   return tid;
@@ -347,9 +342,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  int old_priority = get_priority(thread_current ());
-  thread_current ()->base_priority = new_priority;
-  if (get_priority(thread_current ()) < old_priority)
+  struct thread* cur = thread_current();
+  cur->base_priority = new_priority;
+  int donated_priority = cur->donated_priority;
+  int old_effective_priority = cur->effective_priority;
+  cur->effective_priority = new_priority > donated_priority ? new_priority : donated_priority;
+  if (cur->effective_priority < old_effective_priority)
     thread_yield();
 }
 
@@ -357,7 +355,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return get_priority(thread_current());
+  return thread_current()->effective_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -478,6 +476,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->base_priority = priority;
   t->donated_priority = 0; //P2
+  t->effective_priority = 0; //P2
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

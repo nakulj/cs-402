@@ -17,7 +17,7 @@ priority_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry (a_, struct thread, elem);
   const struct thread *b = list_entry (b_, struct thread, elem);
   
-  return get_priority(a) < get_priority(b);
+  return a->effective_priority < b->effective_priority;
 }
 
 

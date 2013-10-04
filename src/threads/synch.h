@@ -17,11 +17,20 @@ bool sema_try_down (struct semaphore *);
 void sema_up (struct semaphore *);
 void sema_self_test (void);
 
+
+// P2: element struct for waiters list.
+struct waiter_list_elem {
+  struct list_elem elem;
+  struct thread* waiter;
+};
+
 /* Lock. */
 struct lock 
   {
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
+    
+    struct list waiter_list;        // P2: list of threads waiting on this lock.
   };
 
 void lock_init (struct lock *);

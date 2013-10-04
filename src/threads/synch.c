@@ -119,7 +119,7 @@ sema_up (struct semaphore *sema)
   sema->value++;
   intr_set_level (old_level);
   
-  thread_yield();
+  thread_yield(); // P2
 }
 
 static void sema_test_helper (void *sema_);
@@ -180,10 +180,11 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  list_init (&lock->waiter_list); // P2
   sema_init (&lock->semaphore, 1);
 }
 
-// P2
+// ------------------------------ P2 ---------------------------------------------
 
 #define THREAD_MAGIC 0xcd6abf4b
 static bool
@@ -192,6 +193,31 @@ is_thread (struct thread *t)
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
+static bool
+waiter_list_priority_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct waiter_list_elem, elem)->waiter;
+  const struct thread *b = list_entry (b_, struct waiter_list_elem, elem)->waiter;
+  
+  return a->effective_priority < b->effective_priority;
+}
+
+int calculate_donated_priority (struct lock* lock) {   
+   struct waiter_list_elem* max = list_entry (list_max (lock->waiter_list, waiter_list_priority_less, NULL), struct waiter_elem, elem);
+   return max->waiter->effective_priority;
+}
+
+void donate_priority (struct thread* holder, int donation) {
+   bool is_donation_bigger = donation > holder->base_priority;   
+   holder->donated_priority = is_donation_bigger ? donation : 0;
+   if (is_donation_bigger)
+      cur->effective_priority = donation;
+   else
+      cur->effective_priority = base_priority;      
+}
+
+// -------------------------------------------------------------------------------
 
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
@@ -211,29 +237,29 @@ lock_acquire (struct lock *lock)
   struct thread* acquirer = thread_current();
   struct thread* holder = lock->holder;
 
-  if (!is_thread(holder)) {
+  if ( !is_thread(holder)) {
     sema_down (&lock->semaphore);
     lock->holder = thread_current ();
     return;
   }
   
-  // save old donated priority
-  int holder_old_donated_priority = holder->donated_priority;
+  // put acquirer on waiting list
+  struct waiter_list_elem* waiter_list_elem_acquirer = malloc(sizeof(waiters_elem));
+  waiter_list_elem_acquirer->waiter = acquirer;
+  list_push_back(&lock->waiter_list, waiter_list_elem_acquirer);
   
-  // donate priority
-  bool donate = get_priority(holder) < get_priority(acquirer);
-  if (donate) {
-    holder->donated_priority = get_priority(acquirer);
-  }
-  
+  // calculate and assign donate priority.
+  donate_priority (holder, calculate_donated_priority(lock));
+   
   // wait for the other to release
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   
-  // restore old priority.
-  if (donate) {
-    holder->donated_priority = holder_old_donated_priority;
-  }
+  // remove acquirer from waiting list
+  free(list_remove (waiter_list_elem_acquirer));  
+  
+  // calculate and assign the new donate priority.
+  donate_priority (holder, calculate_donated_priority(lock));
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
