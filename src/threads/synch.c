@@ -33,16 +33,6 @@
 #include "threads/thread.h"
 #include <stdlib.h>
 
-// ---- P2 -----     
-
-struct lock_list_elem {
-  struct list_elem elem;
-  struct lock* lock;
-};
-
-// ---- End ----
-
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -169,7 +159,7 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -185,14 +175,21 @@ sema_test_helper (void *sema_)
    acquire and release it.  When these restrictions prove
    onerous, it's a good sign that a semaphore should be used,
    instead of a lock. */
+  
+//struct list lock_list = LIST_INITIALIZER(lock_list);
+   
+   
+// ---- P2 -----     
+struct list lock_list = LIST_INITIALIZER(lock_list);
+
+// ---- End ----
+   
 void
 lock_init (struct lock *lock)
 {
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
-  struct lock_list_elem* lock_list_new = malloc(sizeof(struct lock_list_elem));
-  list_push_back(&lock_list, &lock_list_new->elem);
   list_init (&lock->waiter_list); // P2
   sema_init (&lock->semaphore, 1);
 }
@@ -216,6 +213,7 @@ waiter_list_priority_less (const struct list_elem *a_, const struct list_elem *b
 }
 
 int calculate_donated_priority (struct thread* holder) {
+  if (list_size(&lock_list) == 0) return 0;
   int max_overall = 0;
   struct list_elem* e;
   for (e = &lock_list.head; e != list_end (&lock_list); e = list_next (e)) {
@@ -263,8 +261,24 @@ lock_acquire (struct lock *lock)
   struct thread* holder = lock->holder;
 
   if ( !is_thread(holder)) {
+    // add lock into locklist.
+    bool found = 0;
+    struct list_elem* e;
+    if (list_size(&lock_list) > 0)
+      for (e = &lock_list.head; e != list_end (&lock_list); e = list_next (e)) {
+        struct lock* lock = list_entry(e, struct lock_list_elem, elem)->lock; 
+        if (lock->holder == acquirer)
+          found = 1;
+    }
+
+    if (found == 0)  { 
+      struct lock_list_elem* lock_list_elem_new = malloc(sizeof(struct lock_list_elem));
+      lock_list_elem_new->lock = lock;
+      list_push_back (&lock_list, &lock_list_elem_new->elem);  
+    }
+    
     sema_down (&lock->semaphore);
-    lock->holder = thread_current ();
+    lock->holder = acquirer;
     return;
   }
   
@@ -278,21 +292,13 @@ lock_acquire (struct lock *lock)
    
   // wait for the other to release
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  lock->holder = acquirer;
   
   // remove acquirer from waiting list
   list_remove (&waiter_list_elem_acquirer->elem);
   free(waiter_list_elem_acquirer);  
   
   // calculate and assign the new donate priority.
-  
-/*  struct list_elem* e;
-  printf(" --- af %d ---", list_size(&lock->waiter_list));
-  for (e = &lock->waiter_list.head; e != list_end (&lock->waiter_list); e = list_next (e))
-  {
-      printf("%d - ",  list_entry (e, struct waiter_list_elem, elem)->waiter->tid);
-  }*/
-    
   donate_priority (holder, calculate_donated_priority(holder));
 }
 

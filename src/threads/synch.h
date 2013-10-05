@@ -24,6 +24,12 @@ struct waiter_list_elem {
   struct thread* waiter;
 };
 
+struct lock_list_elem {
+  struct list_elem elem;
+  struct lock* lock;
+};
+// End of P2
+
 /* Lock. */
 struct lock 
   {
@@ -53,9 +59,6 @@ void cond_broadcast (struct condition *, struct lock *);
 // ------- P2 ------- //
 int calculate_donated_priority (struct thread* holder);
 void donate_priority (struct thread* holder, int donation);
-
-
-struct list lock_list;              
 //  -------- END ------
 
 /* Optimization barrier.

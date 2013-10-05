@@ -86,6 +86,7 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+   
 void
 thread_init (void) 
 {
@@ -93,8 +94,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
-  list_init (&all_list);
-  list_init (&lock_list);   
+  list_init (&all_list);   
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();

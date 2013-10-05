@@ -21,6 +21,8 @@ static thread_func b_thread_func;
 void
 test_priority_donate_multiple (void) 
 {
+
+  msg ("Hello World");
   struct lock a, b;
 
   /* This test does not work with the MLFQS. */
@@ -29,12 +31,24 @@ test_priority_donate_multiple (void)
   /* Make sure our priority is the default. */
   ASSERT (thread_get_priority () == PRI_DEFAULT);
 
+
+  msg ("Main thread is initializing locks");
+
   lock_init (&a);
   lock_init (&b);
 
+
+  msg ("Main thread is getting lock a");
+
   lock_acquire (&a);
+
+  msg ("Main thread acquired lock a");
+  msg ("Main thread is getting lock b");
+  
   lock_acquire (&b);
 
+  msg ("Main thread acquired lock b.");
+  
   thread_create ("a", PRI_DEFAULT + 1, a_thread_func, &a);
   msg ("Main thread should have priority %d.  Actual priority: %d  %d  %d.",
        PRI_DEFAULT + 1, thread_get_priority (), thread_get_base_priority(), thread_get_donated_priority());
