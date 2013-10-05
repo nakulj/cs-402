@@ -143,8 +143,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-// P2
-
+// P2 -- DEBUG
 int thread_get_base_priority(void);
 int thread_get_donated_priority(void);
 

@@ -33,6 +33,8 @@
 #include "threads/thread.h"
 #include <stdlib.h>
 
+#include "threads/ready_list.h"
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -114,9 +116,11 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+  if (!list_empty (&sema->waiters)) {
+    struct list_elem* max_elem = list_max(&sema->waiters, priority_less, NULL);
+    list_remove (max_elem);
+    thread_unblock (list_entry (max_elem, struct thread, elem));
+  }
   sema->value++;
   intr_set_level (old_level);
   
@@ -188,7 +192,6 @@ lock_init (struct lock *lock)
 
 // ------------------------------ P2 ---------------------------------------------
 
-
 struct lock* lock_list[64];
 int lock_list_cnt = 0;
 
@@ -231,7 +234,6 @@ void donate_priority (struct thread* holder, int donation) {
       holder->donated_priority = 0;
       holder->effective_priority = holder->base_priority;
    }
-   thread_yield();
 }
 
 // -------------------------------------------------------------------------------
@@ -288,7 +290,8 @@ lock_acquire (struct lock *lock)
   free(waiter_list_elem_acquirer);  
   
   // calculate and assign the new donate priority.
-  donate_priority (holder, calculate_donated_priority(holder));
+  int restored_don = calculate_donated_priority(holder);
+  donate_priority (holder, restored_don);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -339,7 +342,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {

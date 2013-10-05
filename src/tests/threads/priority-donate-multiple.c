@@ -50,22 +50,21 @@ test_priority_donate_multiple (void)
   msg ("Main thread acquired lock b.");
   
   thread_create ("a", PRI_DEFAULT + 1, a_thread_func, &a);
-  msg ("Main thread should have priority %d.  Actual priority: %d  %d  %d.",
-       PRI_DEFAULT + 1, thread_get_priority (), thread_get_base_priority(), thread_get_donated_priority());
+  msg ("Main thread should have priority %d.  Actual priority: %d.",
+       PRI_DEFAULT + 1, thread_get_priority ());
 
   thread_create ("b", PRI_DEFAULT + 2, b_thread_func, &b);
-  msg ("Main thread should have priority %d.  Actual priority: %d  %d  %d.",
-       PRI_DEFAULT + 2, thread_get_priority (), thread_get_base_priority(), thread_get_donated_priority());
-
+  msg ("Main thread should have priority %d.  Actual priority: %d.",
+       PRI_DEFAULT + 2, thread_get_priority ());
   lock_release (&b);
   msg ("Thread b should have just finished.");
-  msg ("Main thread should have priority %d.  Actual priority: %d  %d  %d.",
-       PRI_DEFAULT + 1, thread_get_priority (), thread_get_base_priority(), thread_get_donated_priority());
+  msg ("Main thread should have priority %d.  Actual priority: %d.",
+       PRI_DEFAULT + 1, thread_get_priority ());
 
   lock_release (&a);
   msg ("Thread a should have just finished.");
-  msg ("Main thread should have priority %d.  Actual priority: %d  %d  %d.",
-       PRI_DEFAULT, thread_get_priority (), thread_get_base_priority(), thread_get_donated_priority());
+  msg ("Main thread should have priority %d.  Actual priority: %d.",
+       PRI_DEFAULT + 0, thread_get_priority ());
 }
 
 static void

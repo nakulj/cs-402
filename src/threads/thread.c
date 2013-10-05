@@ -598,7 +598,8 @@ allocate_tid (void)
 
   return tid;
 }
-// P2
+
+// P2 --- DEBUG
 int thread_get_base_priority() {
   return thread_current()->base_priority;
 }
