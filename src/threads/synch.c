@@ -202,8 +202,52 @@ is_thread (struct thread *t)
 {
   return t != NULL && t->magic == THREAD_MAGIC;
 }
-    
-void lock_sema_down (struct semaphore *sema, struct thread* holder) {
+
+void donate_priority (struct thread* holder, int donation) {
+   int old_effective_priority = holder->effective_priority;
+   if (donation > holder->base_priority) {
+      holder->donated_priority = donation;
+      holder->effective_priority = donation;
+   } else {
+      holder->donated_priority = 0;
+      holder->effective_priority = holder->base_priority;
+   }
+}
+
+// Refresh donated priorities of all the threads dependent on current threads.
+void refresh_donated_priority_down (struct thread* acquirer) {
+  int i;
+  for (i=0; i < lock_list_cnt; i++) {
+    struct list_elem* e;
+    struct list* waiter_list = &lock_list[i]->semaphore.waiters; 
+    for (e = &waiter_list->head; e != list_end(waiter_list); e = e->next) {
+      if (list_entry(e, struct thread, elem) == acquirer) {
+        if (lock_list[i]->holder->effective_priority < acquirer->effective_priority)
+            donate_priority(lock_list[i]->holder, acquirer->effective_priority);
+        refresh_donated_priority_down (lock_list[i]->holder);
+        break;
+      }
+    }
+  }
+}
+
+int calculate_donated_priority_up (struct thread* holder) {
+  ASSERT (is_thread(holder));
+  int max_overall = -1, i;
+  struct thread* t_max;
+  for (i=0; i<lock_list_cnt; i++) {
+    if (lock_list[i]->holder == holder) {
+      struct list* waiter_list = &lock_list[i]->semaphore.waiters;
+      if (list_size(waiter_list) == 0) continue;
+      t_max = list_entry(list_max(waiter_list, priority_less, NULL), struct thread, elem);  
+      ASSERT(is_thread(t_max));
+      if (max_overall < t_max->effective_priority) max_overall = t_max->effective_priority;
+    }
+  }
+  return max_overall;
+}
+   
+void lock_sema_down (struct semaphore *sema, struct thread* acquirer) {
   enum intr_level old_level;
 
   ASSERT (sema != NULL);
@@ -215,7 +259,7 @@ void lock_sema_down (struct semaphore *sema, struct thread* holder) {
       list_push_back (&sema->waiters, &thread_current ()->elem);
   
       // P2: calculate and assign donate priority.
-      donate_priority (holder, calculate_donated_priority(holder));
+      refresh_donated_priority_down(acquirer);
 
       thread_block ();
     }
@@ -235,7 +279,7 @@ void lock_sema_up (struct semaphore *sema, struct thread* holder) {
     list_remove (max_elem);
 
     // P2: calculate and assign donate priority.
-    donate_priority (holder, calculate_donated_priority(holder));
+    donate_priority (holder, calculate_donated_priority_up(holder));
     
     thread_unblock (list_entry (max_elem, struct thread, elem));
   }
@@ -243,32 +287,6 @@ void lock_sema_up (struct semaphore *sema, struct thread* holder) {
   intr_set_level (old_level);
   
   thread_yield(); // p2
-}
-int calculate_donated_priority (struct thread* holder) {
-  ASSERT (is_thread(holder));
-  int max_overall = 0;
-  int i;
-  for (i=0; i<lock_list_cnt; i++) {
-    if (lock_list[i]->holder == holder) {
-      struct list* waiter_list = &lock_list[i]->semaphore.waiters;
-      if (list_size(waiter_list) == 0) continue;
-      struct list_elem* max_elem = list_max (waiter_list, priority_less, NULL); 
-      struct thread* max = list_entry (max_elem, struct thread, elem);
-      if (max_overall < max->effective_priority) max_overall = max->effective_priority;
-    }
-  }
-  return max_overall;
-}
-
-void donate_priority (struct thread* holder, int donation) {
-   int old_effective_priority = holder->effective_priority;
-   if (donation > holder->base_priority) {
-      holder->donated_priority = donation;
-      holder->effective_priority = donation;
-   } else {
-      holder->donated_priority = 0;
-      holder->effective_priority = holder->base_priority;
-   }
 }
 
 // ----------------------------------- END --------------------------------------------
@@ -306,7 +324,7 @@ lock_acquire (struct lock *lock)
   }
 
   // wait for the other to release
-  lock_sema_down (&lock->semaphore, lock->holder);
+  lock_sema_down (&lock->semaphore, acquirer);
   lock->holder = acquirer;
 }
 
