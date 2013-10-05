@@ -24,10 +24,6 @@ struct waiter_list_elem {
   struct thread* waiter;
 };
 
-struct lock_list_elem {
-  struct list_elem elem;
-  struct lock* lock;
-};
 // End of P2
 
 /* Lock. */

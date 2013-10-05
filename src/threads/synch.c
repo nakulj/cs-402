@@ -175,15 +175,7 @@ sema_test_helper (void *sema_)
    acquire and release it.  When these restrictions prove
    onerous, it's a good sign that a semaphore should be used,
    instead of a lock. */
-  
-//struct list lock_list = LIST_INITIALIZER(lock_list);
-   
-   
-// ---- P2 -----     
-struct list lock_list = LIST_INITIALIZER(lock_list);
 
-// ---- End ----
-   
 void
 lock_init (struct lock *lock)
 {
@@ -195,6 +187,10 @@ lock_init (struct lock *lock)
 }
 
 // ------------------------------ P2 ---------------------------------------------
+
+
+struct lock* lock_list[64];
+int lock_list_cnt = 0;
 
 #define THREAD_MAGIC 0xcd6abf4b
 static bool
@@ -213,14 +209,12 @@ waiter_list_priority_less (const struct list_elem *a_, const struct list_elem *b
 }
 
 int calculate_donated_priority (struct thread* holder) {
-  if (list_size(&lock_list) == 0) return 0;
   int max_overall = 0;
-  struct list_elem* e;
-  for (e = &lock_list.head; e != list_end (&lock_list); e = list_next (e)) {
-    struct lock* lock = list_entry(e, struct lock_list_elem, elem)->lock; 
-    if (lock->holder == holder) {
-      if (list_size(&lock->waiter_list) == 0) continue;
-      struct list_elem* max_elem = list_max (&lock->waiter_list, waiter_list_priority_less, NULL); 
+  int i;
+  for (i=0; i<lock_list_cnt; i++) {
+    if (lock_list[i]->holder == holder) {
+      if (list_size(&lock_list[i]->waiter_list) == 0) continue;
+      struct list_elem* max_elem = list_max (&lock_list[i]->waiter_list, waiter_list_priority_less, NULL); 
       struct waiter_list_elem* max = list_entry (max_elem, struct waiter_list_elem, elem);
       if (max_overall < max->waiter->effective_priority) max_overall = max->waiter->effective_priority;   
     }
@@ -263,18 +257,13 @@ lock_acquire (struct lock *lock)
   if ( !is_thread(holder)) {
     // add lock into locklist.
     bool found = 0;
-    struct list_elem* e;
-    if (list_size(&lock_list) > 0)
-      for (e = &lock_list.head; e != list_end (&lock_list); e = list_next (e)) {
-        struct lock* lock = list_entry(e, struct lock_list_elem, elem)->lock; 
-        if (lock->holder == acquirer)
-          found = 1;
-    }
-
+    int i;
+    for (i=0;i<lock_list_cnt; i++)
+      if (lock_list[i] == lock) found = 1;
+    
     if (found == 0)  { 
-      struct lock_list_elem* lock_list_elem_new = malloc(sizeof(struct lock_list_elem));
-      lock_list_elem_new->lock = lock;
-      list_push_back (&lock_list, &lock_list_elem_new->elem);  
+      ASSERT (lock_list_cnt < 64);
+      lock_list[lock_list_cnt++] = lock;
     }
     
     sema_down (&lock->semaphore);
