@@ -94,7 +94,7 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-  struct sleeping_thread *temp_t;
+  struct sleeping_thread *temp_t = malloc( sizeof(struct sleeping_thread) );
   /*
   ASSERT (intr_get_level () == INTR_ON);
   while (timer_elapsed (start) < ticks) 
@@ -197,20 +197,19 @@ timer_interrupt (struct intr_frame *args UNUSED)
   
   temp_elem = list_begin (&sleeping_threads_list);
   
-  while (temp_elem != list_end (&sleeping_threads_list))
-    {
-      temp_t = list_entry (temp_elem, struct sleeping_thread, elem);
-      
-      next_elem = list_next (temp_elem);
-      if ( (curr_ticks - temp_t->ticks_start) >= temp_t->ticks ) {
-        // Put the thread on ready queue
-        old_level = intr_disable ();
-        thread_unblock (temp_t->t);
-        list_remove (temp_elem);
-        intr_set_level (old_level);
-      }
-      temp_elem = next_elem;
+  while (temp_elem != list_end (&sleeping_threads_list)) {
+    temp_t = list_entry (temp_elem, struct sleeping_thread, elem);
+    
+    next_elem = list_next (temp_elem);
+    if ( (curr_ticks - temp_t->ticks_start) >= temp_t->ticks ) {
+      // Put the thread on ready queue
+      old_level = intr_disable ();
+      thread_unblock (temp_t->t);
+      list_remove (temp_elem);
+      intr_set_level (old_level);
     }
+    temp_elem = next_elem;
+  }
 
   thread_tick ();
 }
