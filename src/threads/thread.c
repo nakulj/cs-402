@@ -15,6 +15,8 @@
 #include "userprog/process.h"
 #endif
 
+#include "threads/ready_list.h"
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -84,6 +86,7 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+   
 void
 thread_init (void) 
 {
@@ -91,7 +94,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
-  list_init (&all_list);
+  list_init (&all_list);   
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -198,8 +201,12 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  /* Add to run queue. */
+  /* Add to ready queue. */
   thread_unblock (t);
+  
+  /* Compare with running thread */
+  if(thread_current()->effective_priority < t->effective_priority)
+    thread_yield();
 
   return tid;
 }
@@ -307,7 +314,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
+  if (cur != idle_thread)
+  // TODO: round rubin
     list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
@@ -335,14 +343,20 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread* cur = thread_current();
+  cur->base_priority = new_priority;
+  int donated_priority = cur->donated_priority;
+  int old_effective_priority = cur->effective_priority;
+  cur->effective_priority = new_priority > donated_priority ? new_priority : donated_priority;
+  if (cur->effective_priority < old_effective_priority)
+    thread_yield();
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_current()->effective_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -461,7 +475,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->base_priority = priority;
+  t->donated_priority = 0; //P2
+  t->effective_priority = priority; //P2
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -492,8 +508,12 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else {
+    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    struct list_elem* max = list_max (&ready_list, priority_less, NULL);
+    list_remove(max);
+    return list_entry (max, struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -578,7 +598,15 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+// P2 --- DEBUG
+int thread_get_base_priority() {
+  return thread_current()->base_priority;
+}
+int thread_get_donated_priority() {
+  return thread_current()->donated_priority;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
