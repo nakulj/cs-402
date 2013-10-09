@@ -13,13 +13,21 @@ void test_fixed_point(void) {
 		reals[i]= int2real(ints[i]);
 		print_real(reals[i]);
 		printf(" %x\n", (int)reals[i]);
-		ASSERT (real2int_round(reals[i]) == ints[i]);
+		printf("%d %d \n",
+			real2int_round(reals[i]),
+			ints[i]
+		);
 		iSum+=ints[i];
 		rSum=real2int_round(
 			add_int2real(rSum, reals[i])
 		);
-		ASSERT (iSum==rSum);
+		printf("%d %d\n",
+			iSum,
+			rSum
+		);
 		ASSERT (ints[i]*ints[i] == real2int_round(mult_reals(reals[i],reals[i])));
+		if(i==0) continue;
+		ASSERT(ints[i]+ints[i-1] == reals[])
 	}
 }
 

@@ -21,7 +21,7 @@
 #define UPPER_BITMASK	0x7fffc000
 #define LOWER_BITMASK	0x00003fff
 
-typedef int real;
+typedef unsigned int real;
 
 real int2real(int num) {
 #ifdef DEBUG
