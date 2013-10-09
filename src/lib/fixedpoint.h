@@ -15,6 +15,9 @@
 #define LOWER 14
 #define EXP 16384
 #define UPPER_MAX 131072
+#define SIGN_BITMASK	0x80000000
+#define UPPER_BITMASK	0x7fffc000
+#define LOWER_BITMASK	0x00003fff
 
 typedef int real;
 
@@ -49,6 +52,18 @@ real div_reals(real num1, real num2) {
 	return ((int64_t)num1)*EXP/num2;
 
 }
+
+#ifdef DEBUG
+void print_real(real num) {
+	bool sign = num<0;
+	printf(
+		"%c%d.%d",
+		sign?'-':'+',
+		(UPPER_BITMASK & num)/EXP,
+		(LOWER_BITMASK & num)
+	);
+}
+#endif DEBUG
 
 #endif	/* FIXEDPOINT_H */
 
