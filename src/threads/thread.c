@@ -15,8 +15,6 @@
 #include "userprog/process.h"
 #endif
 
-#include "threads/ready_list.h"
-
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -24,7 +22,7 @@
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
-static struct list ready_list;
+static struct list ready_list[64];
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -93,7 +91,13 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  list_init (&ready_list);
+  if (thread_mlfqs) {
+    int i;
+    for (i = 0; i < 64; i++)
+      list_init (&ready_list[i]);
+  } else { 
+    list_init (&ready_list[0]);
+  }
   list_init (&all_list);   
 
   /* Set up a thread structure for the running thread. */
@@ -244,7 +248,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  if (thread_mlfqs) {
+  
+  } else {
+    list_push_back (&ready_list[0], &t->elem);
+  }
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -315,8 +323,10 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-  // TODO: round rubin
-    list_push_back (&ready_list, &cur->elem);
+    if (thread_mlfqs) {
+    } else {
+      list_push_back (&ready_list[0], &cur->elem);
+    }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,6 +353,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  if (thread_mlfqs) {
+
+    return;
+  }
   struct thread* cur = thread_current();
   cur->base_priority = new_priority;
   int donated_priority = cur->donated_priority;
@@ -359,19 +373,22 @@ thread_get_priority (void)
   return thread_current()->effective_priority;
 }
 
+// P3
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  if (nice < -20) nice = -20;
+  else if (nice > 20) nice = 20;
+  thread_current()->nice = nice;
 }
 
+// P3
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -475,8 +492,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->base_priority = priority;
-  t->donated_priority = 0; //P2
+  if (!thread_mlfqs) {
+    t->base_priority = priority;
+    t->donated_priority = 0; //P2
+  }
   t->effective_priority = priority; //P2
   t->magic = THREAD_MAGIC;
 
@@ -506,13 +525,17 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
-    return idle_thread;
-  else {
-    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    struct list_elem* max = list_max (&ready_list, priority_less, NULL);
-    list_remove(max);
-    return list_entry (max, struct thread, elem);
+  if (thread_mlfqs) {
+  
+  } else {
+    if (list_empty (&ready_list[0]))
+      return idle_thread;
+    else {
+      //return list_entry (list_pop_front (&ready_list[0]), struct thread, elem);
+      struct list_elem* max = list_max (&ready_list[0], priority_less, NULL);
+      list_remove(max);
+      return list_entry (max, struct thread, elem);
+    }
   }
 }
 
@@ -597,14 +620,6 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
-}
-
-// P2 --- DEBUG
-int thread_get_base_priority() {
-  return thread_current()->base_priority;
-}
-int thread_get_donated_priority() {
-  return thread_current()->donated_priority;
 }
 
 /* Offset of `stack' member within `struct thread'.

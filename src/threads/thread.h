@@ -97,6 +97,8 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    
+    int nice;                           /* P3 */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -143,8 +145,14 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-// P2 -- DEBUG
-int thread_get_base_priority(void);
-int thread_get_donated_priority(void);
+static bool
+priority_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->effective_priority < b->effective_priority;
+}
 
 #endif /* threads/thread.h */
