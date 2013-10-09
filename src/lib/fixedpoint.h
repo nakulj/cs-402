@@ -27,7 +27,7 @@ real int2real(int num) {
 #ifdef DEBUG
 	ASSERT (num<UPPER_MAX && num>-UPPER_MAX);
 #endif
-	return num*EXP;
+	return (num>=0)?num*EXP:(num*(-1)*EXP | SIGN_BITMASK);
 }
 
 int real2int_floor(real num) {
@@ -61,7 +61,7 @@ void print_real(real num) {
 	printf(
 		"%c%d.%d",
 		sign?'-':'+',
-		sign?((UPPER_BITMASK & num) ^ UPPER_BITMASK)/EXP+1 : (UPPER_BITMASK & num)/EXP,
+		(UPPER_BITMASK & num)/EXP,
 		(LOWER_BITMASK & num)
 	);
 }
