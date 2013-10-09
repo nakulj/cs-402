@@ -6,6 +6,8 @@
  */
 
 #include "debug.h"
+#include "stdint.h"
+#include "stdbool.h"
 
 #ifndef FIXEDPOINT_H
 #define	FIXEDPOINT_H
@@ -59,7 +61,7 @@ void print_real(real num) {
 	printf(
 		"%c%d.%d",
 		sign?'-':'+',
-		(UPPER_BITMASK & num)/EXP,
+		sign?((UPPER_BITMASK & num) ^ UPPER_BITMASK)/EXP+1 : (UPPER_BITMASK & num)/EXP,
 		(LOWER_BITMASK & num)
 	);
 }
