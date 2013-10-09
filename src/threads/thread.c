@@ -59,6 +59,10 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+// P3
+static int ready_threads;       /* P3 - # of ready threads */
+static int load_avg;            /* P3 */
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -99,6 +103,10 @@ thread_init (void)
     list_init (&ready_list[0]);
   }
   list_init (&all_list);   
+
+  // P3
+  ready_threads = 0;
+  load_avg = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -395,8 +403,29 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
+  /******
+   * Not ready until arithmetic is done.
+   *******
+  if (thread_mlfqs) {
+     load_avg = (59/60)*load_avg + (1/60)*get_ready_threads_count();
+  }
+  return load_avg;
+  */
   return 0;
+}
+
+/* Returns # of threads in ready queues */
+int get_ready_threads_count (void)
+{
+  if (thread_mlfqs) {
+    int i, sum = 0;
+    for (i = 0; i < 64; i++) {
+      sum += list_size(&ready_list[i]);
+    }
+    return(sum);
+  } else {
+    return(list_size(&ready_list[0]));
+  }
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
