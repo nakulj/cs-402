@@ -19,6 +19,7 @@ void test_fixed_point(void) {
 			add_int2real(rSum, reals[i])
 		);
 		ASSERT (iSum==rSum);
+		ASSERT (ints[i]*ints[i] == real2int_round(mult_reals(reals[i],reals[i])));
 	}
 }
 
