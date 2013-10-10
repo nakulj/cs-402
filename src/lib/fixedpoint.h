@@ -39,14 +39,21 @@ int real2int_round(real num) {
 	return ((num+EXP/2) & (~SIGN_BITMASK))/EXP * (sign?-1:1);
 }
 
-real add_int2real(int num1_i, real num2) {
-    real num1 = int2real(num1_i);
+real add_reals(real num1, real num2) {
     bool is_1gt2 = (num1&(~SIGN_BITMASK))>(num2&(~SIGN_BITMASK));
     bool is_diffsign = (num1 ^ num2) & SIGN_BITMASK;
     real sign = (is_diffsign && is_1gt2)?(num1&SIGN_BITMASK):(num2&SIGN_BITMASK);
 	real val_abs = (is_diffsign?(is_1gt2?(num1-num2):(num2-num1)):(num1+num2)) & (~SIGN_BITMASK);
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
+}
+
+real sub_reals(real num1, real num2) {
+    return add_reals (num1 ^ SIGN_BITMASK, num2);
+}
+
+real add_int2real(int num1_i, real num2) {
+    return add_reals(int2real(num1_i), num2);
 }
 
 real sub_int2real(int num1, real num2) {
