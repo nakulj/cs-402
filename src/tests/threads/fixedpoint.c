@@ -17,16 +17,16 @@ void test_fixed_point(void) {
 			real2int_round(reals[i]),
 			ints[i]
 		);
-		/*iSum+=ints[i];
+		iSum+=ints[i];
 		rSum=real2int_round(
 			add_int2real(rSum, reals[i])
 		);
 		printf("%d %d\n",
 			iSum,
 			rSum
-		);*/
+		);
 		// ASSERT (ints[i]*ints[i] == real2int_round(mult_reals(reals[i],reals[i])));
-		// if(i==0) continue;
+		 if(i==0) continue;
 		// ASSERT(ints[i]+ints[i-1] == real2int_round(reals[i]+reals[i-1]));
 	}
 }
