@@ -68,8 +68,9 @@ real mult_reals(real num1, real num2) {
 }
 
 real div_reals(real num1, real num2) {
+    if (num2 == 0) return 0;
     real sign = (num1 ^ num2) & SIGN_BITMASK;
-    real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*EXP/(num2&(~SIGN_BITMASK))) | sign;
+    real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*EXP/(num2&(~SIGN_BITMASK)));
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
 }
@@ -81,7 +82,7 @@ void print_real(real num) {
 		"%c%d.%d",
 		sign?'-':'+',
 		(UPPER_BITMASK & num)/EXP,
-		(LOWER_BITMASK & num)
+		((LOWER_BITMASK & num) * 10000)/EXP
 	);
 }
 #endif DEBUG

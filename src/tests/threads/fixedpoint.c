@@ -12,36 +12,54 @@ void test_fixed_point(void) {
     
     // Check int2real conversion.
     for (i=0; i<19; i++) {
-      reals[i] = int2real(ints[i]);
-      if (ints[i] != real2int_round(reals[i])) {
-          printf("ERR conv: %d %d", ints[i]);
-          print_real(reals[i]);
-          printf("\n");
-          return;
-      }
+        reals[i] = int2real(ints[i]);
+        if (ints[i] != real2int_round(reals[i])) {
+            printf("ERR conv: %d %d", ints[i]);
+            print_real(reals[i]);
+            printf("\n");
+            return;
+        }
     }
 
     // Check arithmatic functions.
-    for (i=1; i<19; i++) { 
-      int res1, res2, res3;
-/*
-      // add_int2real
-      res1 = real2int_round(          real2int_round(add_int2real(ints[i], reals[i-1])),
-                real2int_round(add_int2real(ints[i-1], reals[1])));
+    for (i=1; i<19; i++) {
+        // variables for saving test results.
+        int res1, res2, res3;
+        
+        // add_int2real
+        res1 = real2int_round(add_int2real(ints[i-1], reals[i]));
+        res2 = real2int_round(add_int2real(ints[i], reals[i-1]));
  
-      if ((ints[i] + ints[i-1] != add_int2real(ints[i], reals[i-1])) ||
-          (ints[i] + ints[i-1] != add_int2real(ints[i-1], reals[i]))) {
-        printf("ERR add_int2real: %d + %d != %d or %d\n", ints[i], ints[i-1],
-       return;
-      }
+        if ((ints[i-1] + ints[i] != res1) || (ints[i-1] + ints[i] != res2)) {
+            printf("ERR add_int2real: %d + %d != %d or %d\n", ints[i-1], ints[i], res1, res2);
+            return;
+        }
       
-      if ((ints[i] + ints[i-1] != add_reals(reals[i], reals[i-1]))) {
-        printf("ERR add_reals: %d + %d\n", ints[i], ints[i]);
-        return;
-      }
-*/
-      /*
-	  printf(" %x\n", reals[i]);
+        // add_reals
+        res1 = real2int_round(add_reals(reals[i-1], reals[i]));
+        if ((ints[i-1] + ints[i] != res1)) {
+            printf("ERR add_reals: %d + %d != %d\n", ints[i-1], ints[i], res1);
+            return;
+        }
+        
+        // sub_reals
+        /*
+        res1 = real2int_round(sub_reals(reals[i-1], reals[i]));
+        res2 = real2int_round(sub_reals
+        if ((ints[i] - ints[i-1] != res1)) {
+            printf("ERR add_reals: %d + %d != %d\n", ints[i], ints[i], res1);
+            return;
+        }*/
+
+        print_real(div_reals(reals[i], reals[i-1]));
+        printf("\n");
+
+    }
+}
+
+/*
+      Nakul's code.
+      printf(" %x\n", reals[i]);
 	  printf("%d %d \n",
 	  	real2int_round(reals[i]),
 	  	ints[i]
@@ -61,6 +79,5 @@ void test_fixed_point(void) {
           real2int_round(mult_reals(reals[i],reals[i-1])));
 
       ASSERT(ints[i]*ints[i-1] == real2int_round(mult_reals(reals[i],reals[i-1])));*/
-	}
-}
+
 
