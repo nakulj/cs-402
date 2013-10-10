@@ -31,7 +31,7 @@ real int2real(int num) {
 }
 
 int real2int_floor(real num) {
-	return num/EXP;
+	return (num & (~SIGN_BITMASK))/EXP | (num & SIGN_BITMASK);
 }
 
 int real2int_round(real num) {
@@ -44,20 +44,27 @@ real add_int2real(int num1_i, real num2) {
     bool is_1gt2 = (num1&(~SIGN_BITMASK))>(num2&(~SIGN_BITMASK));
     bool is_diffsign = (num1 ^ num2) & SIGN_BITMASK;
     real sign = (is_diffsign && is_1gt2)?(num1&SIGN_BITMASK):(num2&SIGN_BITMASK);
-	return (is_diffsign?(is_1gt2?(num1-num2):(num2-num1)):(num1+num2)) & (~SIGN_BITMASK) | sign;
+	real val_abs = (is_diffsign?(is_1gt2?(num1-num2):(num2-num1)):(num1+num2)) & (~SIGN_BITMASK);
+    if (val_abs == 0) return 0;
+    else return val_abs | sign; 
 }
 
 real sub_int2real(int num1, real num2) {
-	return -int2real(num1) + num2;
+	return add_int2real(-num1, num2);
 }
 
 real mult_reals(real num1, real num2) {
-	return ((int64_t)num1)*num2/EXP;
+    real sign = (num1 ^ num2) & SIGN_BITMASK;
+	real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*(num2&(~SIGN_BITMASK))/EXP);
+    if (val_abs == 0) return 0;
+    else return val_abs | sign; 
 }
 
 real div_reals(real num1, real num2) {
-	return ((int64_t)num1)*EXP/num2;
-
+    real sign = (num1 ^ num2) & SIGN_BITMASK;
+    real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*EXP/(num2&(~SIGN_BITMASK))) | sign;
+    if (val_abs == 0) return 0;
+    else return val_abs | sign; 
 }
 
 #ifdef DEBUG

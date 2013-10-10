@@ -25,9 +25,14 @@ void test_fixed_point(void) {
 			iSum,
 			rSum
 		);
-		// ASSERT (ints[i]*ints[i] == real2int_round(mult_reals(reals[i],reals[i])));
-		 if(i==0) continue;
-		// ASSERT(ints[i]+ints[i-1] == real2int_round(reals[i]+reals[i-1]));
+        if (i==0) continue;
+
+		printf("mul: %d %d\n",
+            ints[i]*ints[i-1],
+            real2int_round(mult_reals(reals[i],reals[i-1])));
+
+        ASSERT(ints[i]*ints[i-1] == real2int_round(mult_reals(reals[i],reals[i-1])));
+
 	}
 }
 
