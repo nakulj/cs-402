@@ -27,7 +27,7 @@ real int2real(int num) {
 #ifdef DEBUG
 	ASSERT (num<UPPER_MAX && num>-UPPER_MAX);
 #endif
-	return (num>=0)?num*EXP:(num*(-1)*EXP | SIGN_BITMASK);
+	return (num>=0)?num*EXP:((num*-1)*EXP | SIGN_BITMASK);
 }
 
 int real2int_floor(real num) {
@@ -35,7 +35,8 @@ int real2int_floor(real num) {
 }
 
 int real2int_round(real num) {
-	return num+(EXP/2)*(num>=0?1:-1);
+	bool sign = num & SIGN_BITMASK;
+	return ((sign?(num-EXP/2):(num+EXP/2)) & (~SIGN_BITMASK))/EXP * (sign?-1:1);
 }
 
 real add_int2real(int num1, real num2) {
@@ -57,7 +58,7 @@ real div_reals(real num1, real num2) {
 
 #ifdef DEBUG
 void print_real(real num) {
-	bool sign = num<0;
+	bool sign = num & SIGN_BITMASK;
 	printf(
 		"%c%d.%d",
 		sign?'-':'+',

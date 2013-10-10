@@ -91,13 +91,14 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  if (thread_mlfqs) {
+  
+  /*if (thread_mlfqs) {
     int i;
     for (i = 0; i < 64; i++)
       list_init (&ready_list[i]);
-  } else { 
-    list_init (&ready_list[0]);
-  }
+  } else {} */
+  
+  list_init (&ready_list[0]);
   list_init (&all_list);   
 
   /* Set up a thread structure for the running thread. */
@@ -248,11 +249,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  if (thread_mlfqs) {
-  
-  } else {
-    list_push_back (&ready_list[0], &t->elem);
-  }
+  // if (thread_mlfqs) {} else {}
+  list_push_back (&ready_list[0], &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -323,10 +321,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    if (thread_mlfqs) {
-    } else {
-      list_push_back (&ready_list[0], &cur->elem);
-    }
+    //if (thread_mlfqs) {} else {}
+    list_push_back (&ready_list[0], &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -353,10 +349,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if (thread_mlfqs) {
-
-    return;
-  }
+  ASSERT (!thread_mlfqs);
   struct thread* cur = thread_current();
   cur->base_priority = new_priority;
   int donated_priority = cur->donated_priority;
@@ -525,17 +518,14 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (thread_mlfqs) {
-  
-  } else {
-    if (list_empty (&ready_list[0]))
-      return idle_thread;
-    else {
-      //return list_entry (list_pop_front (&ready_list[0]), struct thread, elem);
-      struct list_elem* max = list_max (&ready_list[0], priority_less, NULL);
-      list_remove(max);
-      return list_entry (max, struct thread, elem);
-    }
+  // backup: if (thread_mlfqs) {} else {}
+  if (list_empty (&ready_list[0]))
+    return idle_thread;
+  else {
+    //return list_entry (list_pop_front (&ready_list[0]), struct thread, elem);
+    struct list_elem* max = list_max (&ready_list[0], priority_less, NULL);
+    list_remove(max);
+    return list_entry (max, struct thread, elem);
   }
 }
 
