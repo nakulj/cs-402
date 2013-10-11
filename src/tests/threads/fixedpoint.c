@@ -21,7 +21,7 @@ void test_fixed_point(void) {
         }
     }
 
-    // Check arithmatic functions.
+    // Check arithmetic functions.
     for (i=1; i<19; i++) {
         // variables for saving test results.
         int res1, res2, res3;
