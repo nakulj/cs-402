@@ -211,6 +211,18 @@ timer_interrupt (struct intr_frame *args UNUSED)
     temp_elem = next_elem;
   }
 
+  // Update Load Average and Recent CPU every second
+  if (curr_ticks % TIMER_FREQ == 0){
+    thread_calc_load_avg();
+    printf("\nReady Threads: %d ***", get_ready_threads_count());
+    print_real( thread_get_load_avg() );
+    thread_calc_recent_cpu();
+  }
+
+  if (curr_ticks % 4 == 0){
+    thread_calc_priorities();
+  }
+
   thread_tick ();
 }
 

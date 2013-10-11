@@ -401,11 +401,11 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  printf("\nGet Load Avg: ");
-  print_real(int2real(100));
-  printf(" ");
-  print_real(load_avg);
-  printf("\n");
+  // printf("\nGet Load Avg: ");
+  // print_real(int2real(100));
+  // printf(" ");
+  // print_real(load_avg);
+  // printf("\n");
   return mult_reals(load_avg, int2real(100));
 }
 
@@ -414,26 +414,53 @@ void
 thread_calc_load_avg(void)
 {
   if (thread_mlfqs) {
-    printf("\ndebug1: ");
-    print_real(load_avg);
+    // printf("\ndebug1: ");
+    // print_real(load_avg);
 
     //  Formula: load_avg = (59/60)*load_avg + (1/60)*ready_threads
     //                    = (59*load_avg + ready_threads)/60
-    // load_avg = div_reals(add_int2real(mult_reals(int2real(59), load_avg), get_ready_threads_count()), int2real(60));
     load_avg = mult_int2real(load_avg, 59);
     load_avg = add_int2real(load_avg, get_ready_threads_count());
     load_avg = div_int2real(load_avg, 60);
 
-    printf("\ndebug2: ");
-    print_real(load_avg);
-    printf("\n");
+    // printf("\ndebug2: ");
+    // print_real(load_avg);
+    // printf("\n");
   }
 }
 
 /* P3: Returns # of threads in ready queues */
 int get_ready_threads_count (void)
 {
-  return(list_size(&ready_list[0]));
+  if (thread_current () != idle_thread) {
+    return(list_size(&ready_list[0]) + 1);
+  } else {
+    return(list_size(&ready_list[0]));
+  }
+}
+
+/* P3: Calculates priority for every thread */
+void
+thread_calc_priorities (void)
+{
+  struct list_elem *t;
+  for(t = &all_list.head; t != list_end(&all_list); t = t->next) {
+    thread_calc_priority( list_entry(t, struct thread, elem) );    
+  }
+}
+
+/* P3: Calculate priority for given thread T */
+int
+thread_calc_priority( struct thread *temp )
+{
+  // priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+  temp->effective_priority = PRI_MAX - real2int_round(div_int2real(recent_cpu, 4)) - temp->nice * 2;
+
+  if(temp->effective_priority > PRI_MAX){
+    temp->effective_priority = PRI_MAX;
+  } else if(temp->effective_priority < PRI_MIN){
+    temp->effective_priority = PRI_MIN;
+  }
 }
 
 /* P3: Calculates recent_cpu */
@@ -548,8 +575,11 @@ init_thread (struct thread *t, const char *name, int priority)
   if (!thread_mlfqs) {
     t->base_priority = priority;
     t->donated_priority = 0; //P2
+    t->effective_priority = priority; //P2
+  } else {
+    // P3
+    thread_calc_priority(t);
   }
-  t->effective_priority = priority; //P2
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
