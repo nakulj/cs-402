@@ -414,7 +414,7 @@ thread_calc_load_avg()
     printf("\ndebug1: ");
     print_real(load_avg);
 
-     load_avg = div_reals(add_int2real(get_ready_threads_count(), mult_reals(int2real(59), load_avg)), int2real(60));
+     load_avg = div_reals(add_int2real(mult_reals(int2real(59), load_avg), get_ready_threads_count()), int2real(60));
     // load_avg = add_int2real(get_ready_threads_count(), mult_reals(int2real(59), load_avg));
      printf("\ndebug2: ");
      print_real(load_avg);
