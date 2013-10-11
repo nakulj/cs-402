@@ -10,7 +10,6 @@
 
 struct sleeping_thread {
   struct thread *t;     // thread T
-  int64_t ticks_start;  // tick thread T was started since OS booted
   int64_t ticks;		// Duration of ticks
   struct list_elem elem;
 };
