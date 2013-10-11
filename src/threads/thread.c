@@ -442,18 +442,12 @@ thread_all_calc_priority (void)
 {
   if (list_size(&all_list) ==0) return;
   struct list_elem *t;
-  int i = 0;
-  
   
   enum intr_level old_level = intr_disable ();
   
-  for(t = &all_list.head; t != list_end(&all_list); t = t->next) {
-    if (!is_thread(list_entry(t, struct thread, elem))) printf("! %d is not thread. ", i);
-    else printf("! %d is thread. ", i);
-    i++;
-    //thread_calc_priority( list_entry(t, struct thread, elem) );    
-  }
-  
+  for(t = &all_list.head; t != list_end(&all_list); t = t->next)
+    thread_calc_priority( list_entry(t, struct thread, allelem) );
+
   intr_set_level (old_level);  
 }
 
@@ -461,7 +455,7 @@ thread_all_calc_priority (void)
 void
 thread_calc_priority( struct thread *temp )
 {
-  ASSERT(is_thread(temp));
+  if(!is_thread(temp)) return;
   // priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
   temp->effective_priority = PRI_MAX - real2int_round(div_int2real(temp->recent_cpu, 4)) - temp->nice * 2;
 
@@ -480,22 +474,20 @@ thread_all_calc_recent_cpu (void)
   if (list_size(&all_list) ==0) return;
   struct list_elem *e;
   for(e = &all_list.head; e != list_end(&all_list); e = e->next) {
-    thread_calc_recent_cpu(list_entry(e, struct thread, elem));
+    thread_calc_recent_cpu(list_entry(e, struct thread, allelem));
   }
 }
 
 void
 thread_calc_recent_cpu (struct thread* t)
 {
-    ASSERT(is_thread(t));
-    ASSERT(thread_mlfqs);
+    if(!is_thread(t)) return;
     // Formula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice;
     // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
     real temp1 = mult_int2real(load_avg, 2);
     real temp2 = add_int2real(temp1, 1);
     real temp3 = mult_reals(div_reals(temp1, temp2), t->recent_cpu);
-        print_real(t->recent_cpu); printf(" n:%d ", t->nice);
-    //t->recent_cpu = add_int2real(temp3, t->nice);
+    t->recent_cpu = add_int2real(temp3, t->nice);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
