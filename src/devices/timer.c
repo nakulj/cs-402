@@ -94,17 +94,18 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-  struct sleeping_thread *temp_t = malloc( sizeof(struct sleeping_thread) );
+  /*struct sleeping_thread *temp_t = malloc( sizeof(struct sleeping_thread) );
   
   if(ticks == 0){
     return;
-  }
+  }*/
 
   ASSERT (intr_get_level () == INTR_ON);
-  /*
+  
   while (timer_elapsed (start) < ticks) 
     thread_yield ();
-  */
+  
+  /*
   temp_t->t = thread_current();
   temp_t->ticks_start = timer_ticks();
   temp_t->ticks = ticks;
@@ -116,6 +117,7 @@ timer_sleep (int64_t ticks)
   // Block the thread
   thread_block();
   intr_set_level (old_level);  
+  */
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -189,16 +191,23 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
+
+int ticks_sec = 0;
+int ticks_slice = 0;
+
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
+  ticks++; ticks_sec++; ticks_slice++;
+
+/*
   int64_t curr_ticks;
   struct list_elem *temp_elem, *next_elem;
   struct sleeping_thread *temp_t;
   enum intr_level old_level;
   
   curr_ticks = timer_ticks ();
+
 
   for ( temp_elem = list_begin (&sleeping_threads_list);
         temp_elem != list_end (&sleeping_threads_list);
@@ -207,21 +216,22 @@ timer_interrupt (struct intr_frame *args UNUSED)
     if ( (curr_ticks - temp_t->ticks_start) >= temp_t->ticks ) {
       // Put the thread on ready queue
       old_level = intr_disable ();
-      thread_unblock (temp_t->t);
       list_remove (temp_elem);
+      thread_unblock (temp_t->t);
       intr_set_level (old_level);
     }
   }
+  */
 
   if (thread_mlfqs) {
     // Update Load Average and Recent CPU every second
-    if (curr_ticks % TIMER_FREQ == 0){
+    if (ticks_sec == TIMER_FREQ){
+        ticks_sec = 0;
         thread_calc_load_avg();
-        // printf("\nReady Threads: %d ***", get_ready_threads_count());
-        // print_real( thread_get_load_avg() );
         thread_calc_recent_cpu();
     }
-    if (curr_ticks % 4 == 0){
+    if (ticks_slice == 4){
+        ticks_slice = 0;
         thread_calc_priorities();
     }
   }
