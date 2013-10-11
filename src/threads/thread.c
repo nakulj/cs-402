@@ -425,15 +425,7 @@ thread_calc_load_avg()
 /* P3: Returns # of threads in ready queues */
 int get_ready_threads_count (void)
 {
-  if (thread_mlfqs) {
-    int i, sum = 0;
-    for (i = 0; i < 64; i++) {
-      sum += list_size(&ready_list[i]);
-    }
-    return(sum);
-  } else {
-    return(list_size(&ready_list[0]));
-  }
+  return(list_size(&ready_list[0]));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
