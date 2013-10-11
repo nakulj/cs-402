@@ -61,7 +61,8 @@ bool thread_mlfqs;
 
 // P3
 static int ready_threads;       /* P3 - # of ready threads */
-static int load_avg;            /* P3 */
+static unsigned int load_avg;       /* P3 */
+static unsigned int recent_cpu;     /* P3 */
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -406,19 +407,22 @@ thread_get_load_avg (void)
 
 /* P3: Calculates system load average */
 void
-thread_calc_load_avg()
+thread_calc_load_avg(void)
 {
   if (thread_mlfqs) {
-     // load_avg = (59/60)*load_avg + (1/60)*get_ready_threads_count();
-     // load_avg = (59*load_avg + get_ready_threads_count())/60
     printf("\ndebug1: ");
     print_real(load_avg);
 
-     load_avg = div_reals(add_int2real(mult_reals(int2real(59), load_avg), get_ready_threads_count()), int2real(60));
-    // load_avg = add_int2real(get_ready_threads_count(), mult_reals(int2real(59), load_avg));
-     printf("\ndebug2: ");
-     print_real(load_avg);
-     printf("\n");
+    //  Formula: load_avg = (59/60)*load_avg + (1/60)*ready_threads
+    //                    = (59*load_avg + ready_threads)/60
+    // load_avg = div_reals(add_int2real(mult_reals(int2real(59), load_avg), get_ready_threads_count()), int2real(60));
+    load_avg = mult_reals(load_avg, int2real(59));
+    load_avg = add_int2real(load_avg, get_ready_threads_count());
+    load_avg = div_reals( load_avg, int2real(60) );
+
+    printf("\ndebug2: ");
+    print_real(load_avg);
+    printf("\n");
   }
 }
 
@@ -428,12 +432,21 @@ int get_ready_threads_count (void)
   return(list_size(&ready_list[0]));
 }
 
+/* P3: Calculates recent_cpu */
+void
+thread_calc_recent_cpu (void)
+{
+  if (thread_mlfqs) {
+    // Formula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice;
+    // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
+  }
+}
+
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return mult_reals(recent_cpu, int2real(100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
