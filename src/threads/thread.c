@@ -396,18 +396,33 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /******
-   * Not ready until arithmetic is done.
-   *******
-  if (thread_mlfqs) {
-     load_avg = (59/60)*load_avg + (1/60)*get_ready_threads_count();
-  }
-  return load_avg;
-  */
-  return 0;
+  printf("\nGet Load Avg: ");
+  print_real(int2real(100));
+  printf(" ");
+  print_real(load_avg);
+  printf("\n");
+  return mult_reals(load_avg, int2real(100));
 }
 
-/* Returns # of threads in ready queues */
+/* P3: Calculates system load average */
+void
+thread_calc_load_avg()
+{
+  if (thread_mlfqs) {
+     // load_avg = (59/60)*load_avg + (1/60)*get_ready_threads_count();
+     // load_avg = (59*load_avg + get_ready_threads_count())/60
+    printf("\ndebug1: ");
+    print_real(load_avg);
+
+     load_avg = div_reals(add_int2real(get_ready_threads_count(), mult_reals(int2real(59), load_avg)), int2real(60));
+    // load_avg = add_int2real(get_ready_threads_count(), mult_reals(int2real(59), load_avg));
+     printf("\ndebug2: ");
+     print_real(load_avg);
+     printf("\n");
+  }
+}
+
+/* P3: Returns # of threads in ready queues */
 int get_ready_threads_count (void)
 {
   if (thread_mlfqs) {

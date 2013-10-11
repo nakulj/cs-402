@@ -23,6 +23,18 @@
 
 typedef unsigned int real;
 
+int
+int_add(int x, int n)
+{
+	return( x + n / EXP );
+}
+
+void
+zune_test_print()
+{
+	printf("\n \n test test test \n \n");
+}
+
 real int2real(int num) {
 #ifdef DEBUG
 	ASSERT (num<UPPER_MAX && num>-UPPER_MAX);
@@ -39,21 +51,14 @@ int real2int_round(real num) {
 	return ((num+EXP/2) & (~SIGN_BITMASK))/EXP * (sign?-1:1);
 }
 
-real add_reals(real num1, real num2) {
+real add_int2real(int num1_i, real num2) {
+    real num1 = int2real(num1_i);
     bool is_1gt2 = (num1&(~SIGN_BITMASK))>(num2&(~SIGN_BITMASK));
     bool is_diffsign = (num1 ^ num2) & SIGN_BITMASK;
     real sign = (is_diffsign && is_1gt2)?(num1&SIGN_BITMASK):(num2&SIGN_BITMASK);
 	real val_abs = (is_diffsign?(is_1gt2?(num1-num2):(num2-num1)):(num1+num2)) & (~SIGN_BITMASK);
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
-}
-
-real sub_reals(real num1, real num2) {
-    return add_reals (num1 ^ SIGN_BITMASK, num2);
-}
-
-real add_int2real(int num1_i, real num2) {
-    return add_reals(int2real(num1_i), num2);
 }
 
 real sub_int2real(int num1, real num2) {
@@ -68,9 +73,8 @@ real mult_reals(real num1, real num2) {
 }
 
 real div_reals(real num1, real num2) {
-    if (num2 == 0) return 0;
     real sign = (num1 ^ num2) & SIGN_BITMASK;
-    real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*EXP/(num2&(~SIGN_BITMASK)));
+    real val_abs = (((int64_t)(num1&(~SIGN_BITMASK)))*EXP/(num2&(~SIGN_BITMASK))) | sign;
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
 }
@@ -82,7 +86,7 @@ void print_real(real num) {
 		"%c%d.%d",
 		sign?'-':'+',
 		(UPPER_BITMASK & num)/EXP,
-		((LOWER_BITMASK & num) * 10000)/EXP
+		(LOWER_BITMASK & num)
 	);
 }
 #endif DEBUG

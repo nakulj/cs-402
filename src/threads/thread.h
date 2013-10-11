@@ -146,6 +146,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 // P3
+void thread_calc_load_avg();
 int get_ready_threads_count (void);
 
 static bool
