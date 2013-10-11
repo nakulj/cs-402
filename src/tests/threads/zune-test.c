@@ -30,6 +30,12 @@ zune_test (void)
 	thread_calc_load_avg();
 	printf("\nRecalculated Load Avg: ");
 	print_real(thread_get_load_avg());
+
+	printf("\nInitialized CPU Load: ");
+	print_real( thread_get_recent_cpu() );
+	thread_calc_recent_cpu();
+	printf("\nCalculated CPU Load: ");
+	print_real( thread_get_recent_cpu() );
 }
 
 static void

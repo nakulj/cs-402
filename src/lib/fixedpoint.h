@@ -107,7 +107,7 @@ void print_real(real num) {
 		((LOWER_BITMASK & num) * 10000)/EXP
 	);
 }
-#endif DEBUG
+#endif
 
 #endif	/* FIXEDPOINT_H */
 

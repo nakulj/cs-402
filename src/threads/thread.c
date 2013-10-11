@@ -20,6 +20,9 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* P3 */
+typedef unsigned int real;
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list[64];
@@ -61,8 +64,8 @@ bool thread_mlfqs;
 
 // P3
 static int ready_threads;       /* P3 - # of ready threads */
-static unsigned int load_avg;       /* P3 */
-static unsigned int recent_cpu;     /* P3 */
+static real load_avg;       /* P3 */
+static real recent_cpu;     /* P3 */
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -109,6 +112,7 @@ thread_init (void)
   // P3
   ready_threads = 0;
   load_avg = 0;
+  recent_cpu = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -439,6 +443,13 @@ thread_calc_recent_cpu (void)
   if (thread_mlfqs) {
     // Formula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice;
     // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
+    real temp1, temp2;
+
+    temp1 = mult_int2real(load_avg, 2);
+    temp2 = add_int2real(temp1, 1);
+
+    recent_cpu = mult_reals(div_reals(temp1, temp2), recent_cpu);
+    recent_cpu = add_int2real(recent_cpu, thread_current()->nice);
   }
 }
 
