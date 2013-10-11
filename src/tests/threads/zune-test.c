@@ -34,7 +34,19 @@ zune_test (void)
 	printf("\nInitialized CPU Load: ");
 	print_real( thread_get_recent_cpu() );
 	thread_calc_recent_cpu();
-	printf("\nCalculated CPU Load: ");
+	printf("\nCalculated CPU Load BEFORE set nice: ");
+	print_real( thread_get_recent_cpu() );
+
+	thread_set_nice(2);
+	thread_calc_recent_cpu();
+
+	printf("\nCalculated CPU Load AFTER set nice 2: ");
+	print_real( thread_get_recent_cpu() );
+
+	//thread_set_nice(2);
+	thread_calc_recent_cpu();
+
+	printf("\nCalculated CPU Load AFTER set nice again: ");
 	print_real( thread_get_recent_cpu() );
 }
 
