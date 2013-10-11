@@ -76,7 +76,7 @@ void test_fixed_point(void) {
         // Test divisions. No way to test automatically since system doesn't support fraction.
         print_real(div_reals(reals[i], reals[i-1]));
         printf("  ");
-        print_real(div_reals(reals[i], ints[i-1]));
+        print_real(div_int2real(reals[i], ints[i-1]));
         printf("\n");
     }
 }
