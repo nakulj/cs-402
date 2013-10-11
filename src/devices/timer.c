@@ -220,8 +220,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
   }
   
   if (thread_mlfqs) {
-    //thread_current()->recent_cpu = add_int2real(thread_current ()->recent_cpu, 1);
-    
+    // update reent_cpu for running thread every tick. See design doc.
+    thread_current()->recent_cpu = add_int2real(thread_current ()->recent_cpu, 1);
     // Update Load Average and Recent CPU every second
     if (ticks_sec == TIMER_FREQ){
         ticks_sec = 0;
