@@ -24,3 +24,11 @@
 # Vim stuff
 *.swp
 *.*~
+
+*.aux
+*.synctex.gz
+Design Document/designdoc.log
+
+Design Document/designdoc.toc
+
+designdoc.log
