@@ -83,15 +83,15 @@ real div_reals (real num1, real num2) {
 
 // real * int
 real mult_int2real (real num1, int num2) {
-    real sign = ((num1 & SIGN_BITMASK == 0)^(num2 >= 0))?0:SIGN_BITMASK;
-	real val_abs = num1&(~SIGN_BITMASK) * num2<0?num2:-num2;
+    real sign = (((num1&SIGN_BITMASK) != 0)^(num2 >= 0))?0:SIGN_BITMASK;
+	real val_abs = (num1&(~SIGN_BITMASK)) * (num2<0?-num2:num2);
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
 }
 
 real div_int2real (real num1, int num2) {
-    real sign = ((num1 & SIGN_BITMASK == 0)^(num2 >= 0))?0:SIGN_BITMASK;
-	real val_abs = num1&(~SIGN_BITMASK) * num2<0?num2:-num2;
+    real sign = (((num1 & SIGN_BITMASK) != 0)^(num2 >= 0))?0:SIGN_BITMASK;
+	real val_abs = (num1&(~SIGN_BITMASK)) / (num2<0?num2:-num2);
     if (val_abs == 0) return 0;
     else return val_abs | sign; 
 }

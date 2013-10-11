@@ -64,9 +64,19 @@ void test_fixed_point(void) {
             printf("ERR add_reals: %d * %d != %d\n", ints[i], ints[i-1], res1);
             return;
         }
-        
+       
+        // mult_int2real
+        res1 = real2int_round(mult_int2real(reals[i], ints[i-1]));
+        res2 = real2int_round(mult_int2real(reals[i-1], ints[i]));
+        if ((ints[i] * ints[i-1] != res1) || (ints[i] * ints[i-1] != res2)) {
+            printf("ERR mult_int2real: %d * %d != %d or %d\n", ints[i], ints[i-1], res1, res2);
+            return;
+        }
+
         // Test divisions. No way to test automatically since system doesn't support fraction.
         print_real(div_reals(reals[i], reals[i-1]));
+        printf("  ");
+        print_real(div_reals(reals[i], ints[i-1]));
         printf("\n");
     }
 }
