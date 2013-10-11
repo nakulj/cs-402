@@ -1,6 +1,11 @@
 \documentclass[titlepage]{article}
 
 \usepackage{hyperref}
+\usepackage{chngcntr}
+\counterwithout{subsubsection}{subsection}
+\counterwithin{subsubsection}{section}
+\renewcommand{\thesection}{\Alph{section}}
+\renewcommand{\thesubsubsection}{\thesection\arabic{subsubsection}}
 
 \title{CS 140\\Project 1: Threads\\Design Document}
 \author{
@@ -11,11 +16,13 @@
 \date{October 11, 2013}
 
 \begin{document}
+
 \maketitle
 \tableofcontents
 \newpage
-\section{Preliminaries}
-	\input{prelim.tex}
+
+%\section{Preliminaries}
+%	\input{prelim.tex}
 \section{Alarm Clock}
 	\input{alarm.tex}
 \section{Priority Scheduling}
