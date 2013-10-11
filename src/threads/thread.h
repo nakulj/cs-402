@@ -150,7 +150,7 @@ void thread_calc_load_avg(void);
 int get_ready_threads_count (void);
 void thread_calc_recent_cpu (void);
 void thread_calc_priorities(void);
-int thread_calc_priority( struct thread *temp );
+void thread_calc_priority( struct thread *temp );
 
 static bool
 priority_less (const struct list_elem *a_, const struct list_elem *b_,

@@ -406,7 +406,7 @@ thread_get_load_avg (void)
   // printf(" ");
   // print_real(load_avg);
   // printf("\n");
-  return mult_reals(load_avg, int2real(100));
+  return real2int_round( mult_reals(load_avg, int2real(100)) );
 }
 
 /* P3: Calculates system load average */
@@ -418,10 +418,11 @@ thread_calc_load_avg(void)
     // print_real(load_avg);
 
     //  Formula: load_avg = (59/60)*load_avg + (1/60)*ready_threads
-    //                    = (59*load_avg + ready_threads)/60
-    load_avg = mult_int2real(load_avg, 59);
-    load_avg = add_int2real(load_avg, get_ready_threads_count());
-    load_avg = div_int2real(load_avg, 60);
+    //                    = (59*load_avg + ready_threads)/
+    real temp;
+    temp = mult_int2real(load_avg, 59);
+    temp = add_int2real(temp, get_ready_threads_count());
+    load_avg = div_int2real(temp, 60);
 
     // printf("\ndebug2: ");
     // print_real(load_avg);
@@ -430,7 +431,8 @@ thread_calc_load_avg(void)
 }
 
 /* P3: Returns # of threads in ready queues */
-int get_ready_threads_count (void)
+int
+get_ready_threads_count (void)
 {
   if (thread_current () != idle_thread) {
     return(list_size(&ready_list[0]) + 1);
@@ -450,7 +452,7 @@ thread_calc_priorities (void)
 }
 
 /* P3: Calculate priority for given thread T */
-int
+void
 thread_calc_priority( struct thread *temp )
 {
   // priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
@@ -484,7 +486,7 @@ thread_calc_recent_cpu (void)
 int
 thread_get_recent_cpu (void) 
 {
-  return mult_reals(recent_cpu, int2real(100));
+  return real2int_round( mult_reals(recent_cpu, int2real(100)) );
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
