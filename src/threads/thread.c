@@ -20,9 +20,6 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* P3 */
-typedef unsigned int real;
-
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list[64];
@@ -65,7 +62,6 @@ bool thread_mlfqs;
 // P3
 static int ready_threads;       /* P3 - # of ready threads */
 static real load_avg;       /* P3 */
-static real recent_cpu;     /* P3 */
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -112,7 +108,6 @@ thread_init (void)
   // P3
   ready_threads = 0;
   load_avg = 0;
-  recent_cpu = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -443,20 +438,32 @@ get_ready_threads_count (void)
 
 /* P3: Calculates priority for every thread */
 void
-thread_calc_priorities (void)
+thread_all_calc_priority (void)
 {
+  if (list_size(&all_list) ==0) return;
   struct list_elem *t;
+  int i = 0;
+  
+  
+  enum intr_level old_level = intr_disable ();
+  
   for(t = &all_list.head; t != list_end(&all_list); t = t->next) {
-    thread_calc_priority( list_entry(t, struct thread, elem) );    
+    if (!is_thread(list_entry(t, struct thread, elem))) printf("! %d is not thread. ", i);
+    else printf("! %d is thread. ", i);
+    i++;
+    //thread_calc_priority( list_entry(t, struct thread, elem) );    
   }
+  
+  intr_set_level (old_level);  
 }
 
 /* P3: Calculate priority for given thread T */
 void
 thread_calc_priority( struct thread *temp )
 {
+  ASSERT(is_thread(temp));
   // priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
-  temp->effective_priority = PRI_MAX - real2int_round(div_int2real(recent_cpu, 4)) - temp->nice * 2;
+  temp->effective_priority = PRI_MAX - real2int_round(div_int2real(temp->recent_cpu, 4)) - temp->nice * 2;
 
   if(temp->effective_priority > PRI_MAX){
     temp->effective_priority = PRI_MAX;
@@ -467,26 +474,35 @@ thread_calc_priority( struct thread *temp )
 
 /* P3: Calculates recent_cpu */
 void
-thread_calc_recent_cpu (void)
+thread_all_calc_recent_cpu (void)
 {
-  if (thread_mlfqs) {
+  ASSERT(thread_mlfqs);
+  if (list_size(&all_list) ==0) return;
+  struct list_elem *e;
+  for(e = &all_list.head; e != list_end(&all_list); e = e->next) {
+    thread_calc_recent_cpu(list_entry(e, struct thread, elem));
+  }
+}
+
+void
+thread_calc_recent_cpu (struct thread* t)
+{
+    ASSERT(is_thread(t));
+    ASSERT(thread_mlfqs);
     // Formula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice;
     // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
-    real temp1, temp2;
-
-    temp1 = mult_int2real(load_avg, 2);
-    temp2 = add_int2real(temp1, 1);
-
-    recent_cpu = mult_reals(div_reals(temp1, temp2), recent_cpu);
-    recent_cpu = add_int2real(recent_cpu, thread_current()->nice);
-  }
+    real temp1 = mult_int2real(load_avg, 2);
+    real temp2 = add_int2real(temp1, 1);
+    real temp3 = mult_reals(div_reals(temp1, temp2), t->recent_cpu);
+        print_real(t->recent_cpu); printf(" n:%d ", t->nice);
+    //t->recent_cpu = add_int2real(temp3, t->nice);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
-thread_get_recent_cpu (void) 
+thread_get_recent_cpu () 
 {
-  return real2int_round( mult_reals(recent_cpu, int2real(100)) );
+  return real2int_round( mult_reals(thread_current()->recent_cpu, int2real(100)) );
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -580,10 +596,12 @@ init_thread (struct thread *t, const char *name, int priority)
     t->effective_priority = priority; //P2
   } else {
     // P3
-    thread_calc_priority(t);
-  }
+    t->nice = 0;
+    t->recent_cpu = 0;
+    //thread_calc_priority(t);
+    t->effective_priority = 0;
+  }  
   t->magic = THREAD_MAGIC;
-
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

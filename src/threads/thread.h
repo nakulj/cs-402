@@ -82,6 +82,9 @@ typedef int tid_t;
    blocked state is on a semaphore wait list. */
 
 
+/* P3 */
+typedef unsigned int real;
+
 
 struct thread
   {
@@ -99,6 +102,7 @@ struct thread
     struct list_elem elem;              /* List element. */
     
     int nice;                           /* P3 */
+    real recent_cpu;                     /* P3 */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -148,8 +152,9 @@ int thread_get_load_avg (void);
 // P3
 void thread_calc_load_avg(void);
 int get_ready_threads_count (void);
-void thread_calc_recent_cpu (void);
-void thread_calc_priorities(void);
+void thread_all_calc_recent_cpu (void);
+void thread_calc_recent_cpu(struct thread* t);
+void thread_all_calc_priority(void);
 void thread_calc_priority( struct thread *temp );
 
 static bool
