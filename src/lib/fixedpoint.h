@@ -100,7 +100,7 @@ real div_int2real (real num1, int num2) {
 void print_real(real num) {
 	bool sign = num & SIGN_BITMASK;
 	printf(
-		"%c%d.%d",
+		"%c%d.%04d",
 		sign?'-':'+',
 		(UPPER_BITMASK & num)/EXP,
 		((LOWER_BITMASK & num) * 10000)/EXP
