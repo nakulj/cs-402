@@ -1,0 +1,23 @@
+\begin{enumerate}
+
+\item Abstraction of sleeping threads:\\
+
+\begin{lstlisting}
+struct sleeping_thread {
+  struct thread *t;
+  int64_t ticks_start;
+  int64_t ticks;
+  struct list_elem elem;
+};
+\end{lstlisting}
+
+
+
+
+
+\item List of sleeping threads:\\
+\begin{lstlisting}
+static struct list sleeping_threads_list;   
+\end{lstlisting}
+
+\end{enumerate}
