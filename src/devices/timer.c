@@ -95,17 +95,21 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
   struct sleeping_thread *temp_t = malloc( sizeof(struct sleeping_thread) );
-  /*
+  
+  if(ticks == 0){
+    return;
+  }
+
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-  */
+  
+  //while (timer_elapsed (start) < ticks) 
+  //  thread_yield ();
+  
+  temp_t->t = thread_current();
+  temp_t->ticks = ticks;
+  ASSERT (temp_t->t->status == THREAD_RUNNING);
 
   enum intr_level old_level = intr_disable ();
-
-  temp_t->t = thread_current();
-  temp_t->ticks_start = timer_ticks();
-  temp_t->ticks = ticks;
   // Add thread to the list
   list_push_back (&sleeping_threads_list, &temp_t->elem);
   // Block the thread
@@ -184,31 +188,50 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
+
+int ticks_sec = 0;
+int ticks_slice = 0;
+
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
-  int64_t curr_ticks;
+  ticks++; ticks_sec++; ticks_slice++;
+  
   struct list_elem *temp_elem, *next_elem;
   struct sleeping_thread *temp_t;
   enum intr_level old_level;
-  
-  curr_ticks = timer_ticks ();
-  
-  temp_elem = list_begin (&sleeping_threads_list);
-  
-  while (temp_elem != list_end (&sleeping_threads_list)) {
-    temp_t = list_entry (temp_elem, struct sleeping_thread, elem);
-    
-    next_elem = list_next (temp_elem);
-    if ( (curr_ticks - temp_t->ticks_start) >= temp_t->ticks ) {
-      // Put the thread on ready queue
-      old_level = intr_disable ();
-      thread_unblock (temp_t->t);
-      list_remove (temp_elem);
-      intr_set_level (old_level);
+
+  if (list_size(&sleeping_threads_list) != 0) {
+
+    for ( temp_elem = list_begin (&sleeping_threads_list);
+          temp_elem != list_end (&sleeping_threads_list);
+          temp_elem = list_next(temp_elem) ) {
+      temp_t = list_entry (temp_elem, struct sleeping_thread, elem);
+      if ( temp_t->ticks > 0 ) {
+        temp_t->ticks --;
+      } else {
+        // Put the thread on ready queue
+        old_level = intr_disable ();
+        list_remove (temp_elem);
+        thread_unblock (temp_t->t);
+        intr_set_level (old_level);
+      }
     }
-    temp_elem = next_elem;
+  }
+  
+    if (thread_mlfqs) {
+    // update reent_cpu for running thread every tick. See design doc.
+    thread_current()->recent_cpu = add_int2real(thread_current ()->recent_cpu, 1);
+    // Update Load Average and Recent CPU every second
+    if (ticks_sec >= TIMER_FREQ){
+        ticks_sec = 0;
+        thread_calc_load_avg();
+        thread_all_calc_recent_cpu();
+    }
+    if (ticks_slice >= 4){
+        ticks_slice = 0;
+        thread_all_calc_priority();
+    }
   }
 
   thread_tick ();

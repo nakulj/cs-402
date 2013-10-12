@@ -1,0 +1,20 @@
+\subsection{Data Structures}
+	\subsubsection{}\begin{itemize}
+		\item \code{static real load_avg;}\\Global real value to hold the average load
+		\item \code{real recent_cpu;}\\ Per-thread to keep track of recent CPU.
+		\item \code{int nice;}\\ Per-thread to keep track of niceness.
+	\end{itemize}
+	
+\subsection{Algorithms}
+	\subsubsection{}
+	\subsubsection{}
+	None.
+	\subsubsection{}
+	We keep time spent inside interrupt context to a minimum since this leads to a more accurate calculation of \code{recent_cpu}. More time spent in this section would unfairly affect a thread's niceness.
+\subsection{Rationale}
+	\subsubsection{}
+		Given more time, we would have implemented priority queues to efficiently extract the queue to run. However, in our design, we iterate through the list to find this. Further, we would have reduced the time spent in interrupt context to improve the accuracy of the calculation.
+	\subsubsection{}
+		We chose to implement fixed point arithmetic using an abstraction layer in the \code{src/lib/fixedpoint.h} file. The resultant \code{real} type was a \code{typedef} of an \code{unsigned int}, which allowed us to easily perform arithmetic operations on the sign, whole, and fractional bits of the number without having to deal with the intricacies of 2's complement arithmetic.
+		
+		This encapsulation of functionality allowed us to write the implementation code in one place, where we could thoroughly test it easily. Afterwards, the abstraction allowed us to use the \code{real} type without worrying about its implementation.

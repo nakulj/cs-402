@@ -1,0 +1,25 @@
+\subsection{Data Structures}
+	\subsubsection{}
+	\input{adatastructures.tex}
+\subsection{Algorithms}
+	\subsubsection{}
+		After the \code{timer_sleep()} method is called, the current thread is added to \code{sleeping_threads_list}. The thread is then blocked, which makes it unrunnable. Whenever interrupts occur, we iterate over \code{sleeping_threads_list} to find threads that are either due or overdue to run. For each of these threads:
+		\begin{enumerate}
+			\item Interrupts are disabled.
+			\item The thread is removed from \code{sleeping_threads_list}.
+			\item The thread is unblocked (making it ready).
+			\item Interrupts are reenabled.
+		\end{enumerate}
+	\subsubsection{}
+		The duration of the interrupt handler is minimized by disabling interrupts only after a thread to awaken has been found. Thus, the critical section is limited to the two steps of removing the thread from \code{sleeping_threads_list} and unblocking it.
+\subsection{Synchronization}
+	\subsubsection{}
+		Because \code{sleeping_threads_list} is protected by disabling interrupts, multiple threads may safely simultaneously call \code{timer_sleep()}.
+	\subsubsection{}
+		Within the critical sections of \code{timer_sleep()}, interrupts are disabled. Thus, they cannot interfere with the safe operation of \code{timer_sleep()}.
+\subsection{Rationale}
+	\subsubsection{}
+		We considered using condition variables to have threads wait on them until they were due to wake up. However, this design was untenable for the following reasons:\begin{itemize}
+			\item Because different threads sleep for different times, we would have needed multiple condition variables for each duration.
+			\item When condition variables either \code{signal()} or \code{broadcast()}, they wake threads from an internal queue. However, we specifically needed only due threads to wake.
+		\end{itemize}

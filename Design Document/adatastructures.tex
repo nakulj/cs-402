@@ -1,0 +1,24 @@
+\begin{itemize}
+
+\item Abstraction of sleeping threads:\\
+
+\begin{lstlisting}
+struct sleeping_thread {
+  struct thread *t;
+  int64_t ticks;
+  struct list_elem elem;
+};
+\end{lstlisting}
+
+Where:\begin{itemize}
+	\item \code{t} is a pointer to the referred thread
+	\item \code{ticks} is the number of ticks the thread should sleep for, and
+	\item \code{elem} is an element tracker that allows \code{sleeping_thread} objects to be grouped into lists
+\end{itemize} 
+
+\item List of sleeping threads:\\
+\begin{lstlisting}
+static struct list sleeping_threads_list;   
+\end{lstlisting}
+
+\end{itemize}
