@@ -15,8 +15,6 @@
 #include "userprog/process.h"
 #endif
 
-#include "threads/ready_list.h"
-
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -24,7 +22,7 @@
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
-static struct list ready_list;
+static struct list ready_list[64];
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -61,6 +59,10 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+// P3
+static int ready_threads;       /* P3 - # of ready threads */
+static real load_avg;       /* P3 */
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -93,8 +95,19 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  list_init (&ready_list);
+  
+  /*if (thread_mlfqs) {
+    int i;
+    for (i = 0; i < 64; i++)
+      list_init (&ready_list[i]);
+  } else {} */
+  
+  list_init (&ready_list[0]);
   list_init (&all_list);   
+
+  // P3
+  ready_threads = 0;
+  load_avg = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -222,7 +235,7 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
-
+  
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -244,7 +257,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  // if (thread_mlfqs) {} else {}
+  list_push_back (&ready_list[0], &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -315,8 +329,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-  // TODO: round rubin
-    list_push_back (&ready_list, &cur->elem);
+    //if (thread_mlfqs) {} else {}
+    list_push_back (&ready_list[0], &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,6 +357,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  ASSERT (!thread_mlfqs);
   struct thread* cur = thread_current();
   cur->base_priority = new_priority;
   int donated_priority = cur->donated_priority;
@@ -359,35 +374,130 @@ thread_get_priority (void)
   return thread_current()->effective_priority;
 }
 
+// P3
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  if (nice < -20) nice = -20;
+  else if (nice > 20) nice = 20;
+  thread_current()->nice = nice;
 }
 
+// P3
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  // printf("\nGet Load Avg: ");
+  // print_real(int2real(100));
+  // printf(" ");
+  // print_real(load_avg);
+  // printf("\n");
+  return real2int_round( mult_reals(load_avg, int2real(100)) );
+}
+
+/* P3: Calculates system load average */
+void
+thread_calc_load_avg(void)
+{
+  if (thread_mlfqs) {
+    // printf("\ndebug1: ");
+    // print_real(load_avg);
+
+    //  Formula: load_avg = (59/60)*load_avg + (1/60)*ready_threads
+    //                    = (59*load_avg + ready_threads)/
+    real temp;
+    temp = mult_int2real(load_avg, 59);
+    temp = add_int2real(temp, get_ready_threads_count());
+    load_avg = div_int2real(temp, 60);
+
+    // printf("\ndebug2: ");
+    // print_real(load_avg);
+    // printf("\n");
+  }
+}
+
+/* P3: Returns # of threads in ready queues */
+int
+get_ready_threads_count (void)
+{
+  if (thread_current () != idle_thread) {
+    return(list_size(&ready_list[0]) + 1);
+  } else {
+    return(list_size(&ready_list[0]));
+  }
+}
+
+/* P3: Calculates priority for every thread */
+void
+thread_all_calc_priority (void)
+{
+  if (list_size(&all_list) ==0) return;
+  struct list_elem *t;
+  
+  enum intr_level old_level = intr_disable ();
+  
+  for(t = &all_list.head; t != list_end(&all_list); t = t->next)
+    thread_calc_priority( list_entry(t, struct thread, allelem) );
+
+  intr_set_level (old_level);  
+}
+
+/* P3: Calculate priority for given thread T */
+void
+thread_calc_priority( struct thread *temp )
+{
+  if(!is_thread(temp)) return;
+  // priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+  temp->effective_priority = PRI_MAX - real2int_round(div_int2real(temp->recent_cpu, 4)) - temp->nice * 2;
+
+  if(temp->effective_priority > PRI_MAX){
+    temp->effective_priority = PRI_MAX;
+  } else if(temp->effective_priority < PRI_MIN){
+    temp->effective_priority = PRI_MIN;
+  }
+}
+
+/* P3: Calculates recent_cpu */
+void
+thread_all_calc_recent_cpu (void)
+{
+  ASSERT(thread_mlfqs);
+  if (list_size(&all_list) ==0) return;
+  struct list_elem *e;
+
+  enum intr_level old_level = intr_disable ();
+  for(e = &all_list.head; e != list_end(&all_list); e = e->next) {
+    thread_calc_recent_cpu(list_entry(e, struct thread, allelem));
+  }
+  intr_set_level (old_level);  
+}
+
+void
+thread_calc_recent_cpu (struct thread* t)
+{
+    if(!is_thread(t)) return;
+    // Formula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice;
+    // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
+    real temp1 = mult_int2real(load_avg, 2);
+    real temp2 = add_int2real(temp1, 1);
+    real temp3 = mult_reals(div_reals(temp1, temp2), t->recent_cpu);
+    t->recent_cpu = add_int2real(temp3, t->nice);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
-thread_get_recent_cpu (void) 
+thread_get_recent_cpu () 
 {
-  /* Not yet implemented. */
-  return 0;
+  return real2int_round( mult_reals(thread_current()->recent_cpu, int2real(100)) );
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -475,11 +585,18 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->base_priority = priority;
-  t->donated_priority = 0; //P2
-  t->effective_priority = priority; //P2
+  if (!thread_mlfqs) {
+    t->base_priority = priority;
+    t->donated_priority = 0; //P2
+    t->effective_priority = priority; //P2
+  } else {
+    // P3
+    t->nice = 0;
+    t->recent_cpu = 0;
+    //thread_calc_priority(t);
+    t->effective_priority = 0;
+  }  
   t->magic = THREAD_MAGIC;
-
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -506,11 +623,12 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
+  // backup: if (thread_mlfqs) {} else {}
+  if (list_empty (&ready_list[0]))
     return idle_thread;
   else {
-    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    struct list_elem* max = list_max (&ready_list, priority_less, NULL);
+    //return list_entry (list_pop_front (&ready_list[0]), struct thread, elem);
+    struct list_elem* max = list_max (&ready_list[0], priority_less, NULL);
     list_remove(max);
     return list_entry (max, struct thread, elem);
   }
@@ -597,14 +715,6 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
-}
-
-// P2 --- DEBUG
-int thread_get_base_priority() {
-  return thread_current()->base_priority;
-}
-int thread_get_donated_priority() {
-  return thread_current()->donated_priority;
 }
 
 /* Offset of `stack' member within `struct thread'.

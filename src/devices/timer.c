@@ -101,10 +101,10 @@ timer_sleep (int64_t ticks)
   }
 
   ASSERT (intr_get_level () == INTR_ON);
-  /*
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-  */
+  
+  //while (timer_elapsed (start) < ticks) 
+  //  thread_yield ();
+  
   temp_t->t = thread_current();
   temp_t->ticks = ticks;
   ASSERT (temp_t->t->status == THREAD_RUNNING);
@@ -188,20 +188,21 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
+
+int ticks_sec = 0;
+int ticks_slice = 0;
+
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
-  int64_t curr_ticks;
+  ticks++; ticks_sec++; ticks_slice++;
+  
   struct list_elem *temp_elem, *next_elem;
   struct sleeping_thread *temp_t;
   enum intr_level old_level;
-  
-  curr_ticks = timer_ticks ();
-  
-  temp_elem = list_begin (&sleeping_threads_list);
 
   if (list_size(&sleeping_threads_list) != 0) {
+
     for ( temp_elem = list_begin (&sleeping_threads_list);
           temp_elem != list_end (&sleeping_threads_list);
           temp_elem = list_next(temp_elem) ) {
@@ -215,6 +216,21 @@ timer_interrupt (struct intr_frame *args UNUSED)
         thread_unblock (temp_t->t);
         intr_set_level (old_level);
       }
+    }
+  }
+  
+    if (thread_mlfqs) {
+    // update reent_cpu for running thread every tick. See design doc.
+    thread_current()->recent_cpu = add_int2real(thread_current ()->recent_cpu, 1);
+    // Update Load Average and Recent CPU every second
+    if (ticks_sec >= TIMER_FREQ){
+        ticks_sec = 0;
+        thread_calc_load_avg();
+        thread_all_calc_recent_cpu();
+    }
+    if (ticks_slice >= 4){
+        ticks_slice = 0;
+        thread_all_calc_priority();
     }
   }
 
