@@ -235,7 +235,7 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
-
+  
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -473,9 +473,12 @@ thread_all_calc_recent_cpu (void)
   ASSERT(thread_mlfqs);
   if (list_size(&all_list) ==0) return;
   struct list_elem *e;
+
+  enum intr_level old_level = intr_disable ();
   for(e = &all_list.head; e != list_end(&all_list); e = e->next) {
     thread_calc_recent_cpu(list_entry(e, struct thread, allelem));
   }
+  intr_set_level (old_level);  
 }
 
 void
