@@ -3,7 +3,15 @@
 	\input{adatastructures.tex}
 \subsection{Algorithms}
 	\subsubsection{}
+		After the \code{timer_sleep()} method is called, the current thread is added to \code{sleeping_threads_list}. The thread is then blocked, which makes it unrunnable. Whenever interrupts occur, we iterate over \code{sleeping_threads_list} to find threads that are either due or overdue to run. For each of these threads:
+		\begin{enumerate}
+			\item Interrupts are disabled.
+			\item The thread is removed from \code{sleeping_threads_list}.
+			\item The thread is unblocked (making it ready).
+			\item Interrupts are reenabled.
+		\end{enumerate}
 	\subsubsection{}
+		The duration of the interrupt handler is minimized by disabling interrupts only after a thread to awaken has been found. Thus, the critical section is limited to the two steps of removing the thread from \code{sleeping_threads_list} and unblocking it.
 \subsection{Synchronization}
 	\subsubsection{}
 	\subsubsection{}

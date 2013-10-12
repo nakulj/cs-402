@@ -21,7 +21,9 @@
 		Whenever locks are released, the \dpr and \epr of all affected threads are recalculated. This allows for arbitrary levels of nesting.
 \subsection{Synchronization}
 	\subsubsection{}
-		A potential race hazard arising from the use of the \code{thread_set_priority()} function is the scheduler selecting a thread to run based on the old value of the thread's \epr. 
+		A potential race hazard arises if, after determining to assign \bpr to \code{effective_priority}, another thread donates a higher value to \code{donated_priority}. This would cause a miscalculation of the \code{effective_priority}. This is avoided by disabling interrupts during the \code{set_priority()} operation.
+		
+		We cannot use a lock to solve this issue as it would involve donating priorities, which could possibly cause deadlocks.
 \subsection{Rationale}
 	\subsubsection{}
 		We chose this design due to the simplicity of implementing it. We had also considered using a stack to track nested priority donations; however, this would have placed arbitrary limits on levels of donation nesting. Further, it would complicate handling the case in which a donor thread's base priority was changed while it was waiting for a lock.
