@@ -7,3 +7,6 @@
 \subsection{Rationale}
 	\subsubsection{}
 	\subsubsection{}
+		We chose to implement fixed point arithmetic using an abstraction layer in the \code{src/lib/fixedpoint.h} file. The resultant \code{real} type was a \code{typedef} of an \code{unsigned int}, which allowed us to easily perform arithmetic operations on the sign, whole, and fractional bits of the number without having to deal with the intricacies of 2's complement arithmetic.
+		
+		This encapsulation of functionality allowed us to write the implementation code in one place, where we could thoroughly test it easily. Afterwards, the abstraction allowed us to use the \code{real} type without worrying about its implementation.

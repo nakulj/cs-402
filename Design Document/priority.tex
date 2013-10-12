@@ -1,12 +1,27 @@
+\newcommand{\bpr}{\code{base_priority}\ }
+\newcommand{\dpr}{\code{donated_priority}\ }
+\newcommand{\epr}{\code{effective_priority}\ }
+\newcommand{\ta}{\code{a}\ }
+\newcommand{\tb }{\code{b}\ }
+
 \subsection{Data Structures}
 	\subsubsection{}
 		\input{bdatastructures.tex}
 	\subsubsection{}
+		Priority donations are tracked using the \dpr field of the \code{struct thread}. Because the field is calculated to be up-to-date every time locks are released, it is ensured that \dpr represents the highest donated priority to the field. 
+		
 \subsection{Algorithms}
 	\subsubsection{}
+		In the \code{lock_sema_up()} function (which is called as a part of the \code{lock_release()}) function), we recalculate the \epr of all threads waiting on that lock. Then, the current thread is forced to yield, calling the scheduler, whose \code{next_thread_to_run()} method ensures that only the highest priority thread on the \code{ready_list} is selected to run.
 	\subsubsection{}
+			Every thread is initialised with a certain \bpr and a \dpr of zero. Any time either of these values is changed, the \epr is recalculated to be the higher of the \bpr  and \dpr  values.
+		When a thread \ta attempts to acquire a lock held by thread \tb, \ta donates its effective priority to \tb (\code{b->donated_priority= a->effective_priority}), which then recursively donates the priority to any threads that might be holding locks that \tb is waiting on.
+		Because threads donate their \epr rather than their \bpr, nested donation is automatically tracked.
 	\subsubsection{}
+		Whenever locks are released, the \dpr and \epr of all affected threads are recalculated. This allows for arbitrary levels of nesting.
 \subsection{Synchronization}
 	\subsubsection{}
+		A potential race hazard arising from the use of the \code{thread_set_priority()} function is the scheduler selecting a thread to run based on the old value of the thread's \epr. 
 \subsection{Rationale}
 	\subsubsection{}
+		We chose this design due to the simplicity of implementing it. We had also considered using a stack to track nested priority donations; however, this would have placed arbitrary limits on levels of donation nesting. Further, it would complicate handling the case in which a donor thread's base priority was changed while it was waiting for a lock.

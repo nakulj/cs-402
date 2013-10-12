@@ -1,9 +1,9 @@
 \begin{itemize}
 
 \item \code{struct thread} \begin{itemize}
-		\item \code{int base_priority}\\The base priority of each thread.
-		\item \code{int donated_priority}\\The highest priority any thread is donating to each thread.
-		\item \code{int effective_priority}\\The higher of the two above priorities.
+		\item \code{private int base_priority}\\The base priority of each thread.
+		\item \code{private int donated_priority}\\The highest priority any thread is donating to each thread.
+		\item \code{private int effective_priority}\\The higher of the two above priorities, recalculated every time one of those is changed.
 \end{itemize}
 
 \item \code{struct semaphore} \begin{itemize}
