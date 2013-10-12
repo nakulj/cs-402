@@ -60,7 +60,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 // P3
-static int ready_threads;       /* P3 - # of ready threads */
 static real load_avg;       /* P3 */
 
 static void kernel_thread (thread_func *, void *aux);
