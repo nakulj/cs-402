@@ -1,0 +1,14 @@
+\begin{itemize}
+
+\item \code{struct thread} \begin{itemize}
+		\item \code{int base_priority}\\The base priority of each thread.
+		\item \code{int donated_priority}\\The highest priority any thread is donating to each thread.
+		\item \code{int effective_priority}\\The higher of the two above priorities.
+\end{itemize}
+
+\item \code{struct semaphore} \begin{itemize}
+	\item \code{struct list waiters}\\List of threads waiting on the semaphore.
+\end{itemize}
+
+\end{itemize}
+

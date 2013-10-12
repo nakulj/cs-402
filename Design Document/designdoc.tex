@@ -1,22 +1,31 @@
 \documentclass[titlepage]{article}
 
 \usepackage{hyperref}
+
+\usepackage{listings}
+\usepackage[lighttt]{lmodern}
+\lstset{language=C, basicstyle=\ttfamily}
+\newcommand{\code}[1]{\lstinline@#1@}
+
+\usepackage{enumitem}
+
 \usepackage{chngcntr}
 \counterwithout{subsubsection}{subsection}
 \counterwithin{subsubsection}{section}
 \renewcommand{\thesection}{\Alph{section}}
 \renewcommand{\thesubsubsection}{\thesection\arabic{subsubsection}}
 
+
+
 \title{CS 140\\Project 1: Threads\\Design Document}
 \author{
 	Nakul Joshi\\ \textit{nakul.joshi@usc.edu}\and
 	Sam Zhai\\ \textit{yujia.zhai@usc.edu}\and
-	Zune Nguyen\\ \textit{zuneemailaddress}
+	Zune Nguyen\\ \textit{tridungn@usc.edu}
 	}
 \date{October 11, 2013}
 
 \begin{document}
-
 \maketitle
 \tableofcontents
 \newpage
@@ -25,10 +34,13 @@
 %	\input{prelim.tex}
 \section{Alarm Clock}
 	\input{alarm.tex}
+	\newpage
 \section{Priority Scheduling}
 	\input{priority.tex}
+	\newpage
 \section{Advanced Scheduler}
 	\input{advanced.tex}
+	\newpage
 \section{Survey Questions}
 	\input{survey.tex}
 \end{document}
