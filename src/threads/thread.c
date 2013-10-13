@@ -22,7 +22,7 @@
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
-static struct list ready_list[64];
+static struct list ready_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -101,7 +101,7 @@ thread_init (void)
       list_init (&ready_list[i]);
   } else {} */
   
-  list_init (&ready_list[0]);
+  list_init (&ready_list);
   list_init (&all_list);   
 
   // P3
@@ -257,7 +257,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   // if (thread_mlfqs) {} else {}
-  list_push_back (&ready_list[0], &t->elem);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -329,7 +329,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //if (thread_mlfqs) {} else {}
-    list_push_back (&ready_list[0], &cur->elem);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -357,11 +357,17 @@ void
 thread_set_priority (int new_priority) 
 {
   ASSERT (!thread_mlfqs);
+
+  enum intr_level old_level = intr_disable ();
+
   struct thread* cur = thread_current();
   cur->base_priority = new_priority;
   int donated_priority = cur->donated_priority;
   int old_effective_priority = cur->effective_priority;
   cur->effective_priority = new_priority > donated_priority ? new_priority : donated_priority;
+  
+  intr_set_level (old_level);
+  
   if (cur->effective_priority < old_effective_priority)
     thread_yield();
 }
@@ -429,9 +435,9 @@ int
 get_ready_threads_count (void)
 {
   if (thread_current () != idle_thread) {
-    return(list_size(&ready_list[0]) + 1);
+    return(list_size(&ready_list) + 1);
   } else {
-    return(list_size(&ready_list[0]));
+    return(list_size(&ready_list));
   }
 }
 
@@ -488,17 +494,20 @@ thread_calc_recent_cpu (struct thread* t)
     // recent_cpu = add_int2real( mult_reals(div_reals(mult_int2real(load_avg, 2), add_int2real(mult_int2real(load_avg, 2), 1)), recent_cpu), nice );
     real temp1 = mult_int2real(load_avg, 2);
     real temp2 = add_int2real(temp1, 1);
-    real temp3 = mult_reals(div_reals(temp1, temp2), t->recent_cpu);
+    real temp3 = div_reals(mult_reals(temp1, t->recent_cpu), temp2);
     t->recent_cpu = add_int2real(temp3, t->nice);
+    printf("tid: %d  cpu: ", t->tid);
+    print_real(t->recent_cpu);
+    printf("\n");
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu () 
 {
-  return real2int_round( mult_reals(thread_current()->recent_cpu, int2real(100)) );
+  return real2int_round( mult_int2real(thread_current()->recent_cpu, 100) );
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -623,11 +632,11 @@ static struct thread *
 next_thread_to_run (void) 
 {
   // backup: if (thread_mlfqs) {} else {}
-  if (list_empty (&ready_list[0]))
+  if (list_empty (&ready_list))
     return idle_thread;
   else {
     //return list_entry (list_pop_front (&ready_list[0]), struct thread, elem);
-    struct list_elem* max = list_max (&ready_list[0], priority_less, NULL);
+    struct list_elem* max = list_max (&ready_list, priority_less, NULL);
     list_remove(max);
     return list_entry (max, struct thread, elem);
   }
