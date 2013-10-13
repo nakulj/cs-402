@@ -105,7 +105,6 @@ thread_init (void)
   list_init (&all_list);   
 
   // P3
-  ready_threads = 0;
   load_avg = 0;
 
   /* Set up a thread structure for the running thread. */
@@ -496,9 +495,6 @@ thread_calc_recent_cpu (struct thread* t)
     real temp2 = add_int2real(temp1, 1);
     real temp3 = div_reals(mult_reals(temp1, t->recent_cpu), temp2);
     t->recent_cpu = add_int2real(temp3, t->nice);
-    printf("tid: %d  cpu: ", t->tid);
-    print_real(t->recent_cpu);
-    printf("\n");
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
