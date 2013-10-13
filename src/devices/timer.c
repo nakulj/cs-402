@@ -225,8 +225,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     // Update Load Average and Recent CPU every second
     if (ticks_sec >= TIMER_FREQ){
         ticks_sec = 0;
-        thread_calc_load_avg();
         thread_all_calc_recent_cpu();
+        thread_calc_load_avg();
     }
     if (ticks_slice >= 4){
         ticks_slice = 0;
